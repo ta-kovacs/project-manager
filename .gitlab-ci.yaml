@@ -1,5 +1,6 @@
 stages:          # List of stages for jobs, and their order of execution
   - build
+  - docker
 
 before_script:
   - python -m pip install --upgrade pip
@@ -10,3 +11,16 @@ build-job:       # This job runs in the build stage, which runs first.
   script:
     - python -m compileall -q app/
     - echo "Build successful."
+
+docker-build:
+  stage: docker
+  image: docker:cli
+  services:
+    - name: docker:dind
+      command: ["--tls=false"]
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - docker build -t my-python-app:$CI_COMMIT_SHORT_SHA .
+    - echo "Docker image built successfully."
