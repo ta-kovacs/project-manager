@@ -1,6 +1,7 @@
 stages:          # List of stages for jobs, and their order of execution
   - build
   - docker
+  - deploy
 
 before_script:
   - python -m pip install --upgrade pip
@@ -22,5 +23,14 @@ docker-build:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   script:
-    - docker build -t my-python-app:$CI_COMMIT_SHORT_SHA .
+    - docker build -t project-manager:$CI_COMMIT_SHORT_SHA .
     - echo "Docker image built successfully."
+
+database-migration:
+  stage: deploy
+  script:
+    - alembic upgrade head
+  environment:
+    name: production
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
