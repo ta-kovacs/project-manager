@@ -1,5 +1,6 @@
 from sqlalchemy import String, Integer
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.database.base import Base
 
 class User(Base):
@@ -22,3 +23,13 @@ class User(Base):
         nullable=False,
     )
 
+    memberships: Mapped[list["ProjectUser"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    # read-only shortcut; add/remove memberships through `memberships`
+    projects: Mapped[list["Project"]] = relationship(
+        secondary="project_users",
+        viewonly=True,
+    )
