@@ -33,6 +33,11 @@ class Project(Base):
         viewonly=True,
     )
 
+    documents: Mapped[list["Document"]] = relationship(
+        back_populates="project",
+        cascade=("all, delete-orphan")
+    )
+
     @property
     def owner(self) -> "User | None":
         return next((m.user for m in self.members if m.role == ProjectRole.OWNER), None)
