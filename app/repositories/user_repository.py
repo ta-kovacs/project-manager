@@ -1,11 +1,8 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import select
 
 from app.models.user import User
-from app.database import engine
 
-def create_user(username, password):
+def create_user(session: Session, username: str, password: str):
     user = User(username = username, password = password)
-    with Session(engine) as session:
-        session.add(user)
-        session.commit()
+    session.add(user)
+    session.commit()

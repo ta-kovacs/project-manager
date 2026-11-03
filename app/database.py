@@ -7,3 +7,13 @@ engine = create_engine(
     DATABASE_URL,
     echo=True
 )
+
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    expire_on_commit=False
+)
+
+def get_db():
+    with SessionLocal() as session:
+        yield session
