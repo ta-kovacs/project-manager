@@ -1,7 +1,7 @@
 from sqlalchemy import String, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database.base import Base
+from app.models.base import Base
 from app.models.project_user import ProjectRole
 
 class Project(Base):
