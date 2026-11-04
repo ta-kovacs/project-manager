@@ -1,0 +1,96 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Compile app
+        run: python -m compileall -q app/
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t project-manager:${GITHUB_SHA::7} .
+
+  migrations:
+    runs-on: ubuntu-latest
+    needs: build
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mydb
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Apply migrations
+        run: alembic upgrade head
+
+  deploy:
+    # Pushes to main (or a manual run on main), once the EC2_INSTANCE_ID variable is set.
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+      && github.ref == 'refs/heads/main' && vars.EC2_INSTANCE_ID != ''
+    needs: [build, docker, migrations]
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency: production
+    permissions:
+      id-token: write   # needed for OIDC (AWS_ROLE_ARN)
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      # Authenticates with OIDC when the AWS_ROLE_ARN variable is set (preferred),
+      # otherwise with the AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY secrets of a deploy-only IAM user.
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image to ECR
+        id: image
+        run: |
+          image="${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY || 'project-manager' }}:${GITHUB_SHA}"
+          docker build -t "$image" .
+          docker push "$image"
+          echo "uri=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to EC2 (migrations + app) via SSM
+        run: bash .github/scripts/deploy-ec2.sh "${{ vars.EC2_INSTANCE_ID }}" "${{ steps.image.outputs.uri }}"
+
+      - name: Summary
+        run: echo "Deployed \`${{ steps.image.outputs.uri }}\` to instance \`${{ vars.EC2_INSTANCE_ID }}\`" >> "$GITHUB_STEP_SUMMARY"
