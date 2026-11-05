@@ -1,8 +1,16 @@
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.user import User
 
-def create_user(session: Session, username: str, password: str):
-    user = User(username = username, password = password)
+
+def get_by_username(session: Session, username: str) -> User | None:
+    return session.scalar(select(User).where(User.username == username))
+
+
+def create_user(session: Session, username: str, password_hash: str) -> User:
+    user = User(username=username, password_hash=password_hash)
     session.add(user)
     session.commit()
+    session.refresh(user)
+    return user
