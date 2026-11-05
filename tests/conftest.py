@@ -84,6 +84,15 @@ def register(client, credentials):
 
 
 @pytest.fixture
+def login(client, credentials):
+    """POST /login with valid credentials; pass fields to override them, `exclude` to leave some out."""
+    def _login(*, exclude=(), **overrides):
+        return client.post("/login", json=_payload(credentials, overrides, exclude))
+
+    return _login
+
+
+@pytest.fixture
 def registered_user(register):
     """The default test user, already registered; returns the POST /auth response body."""
     response = register()
