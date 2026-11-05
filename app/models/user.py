@@ -11,14 +11,14 @@ class User(Base):
         primary_key=True,
     )
 
-    # TODO: unique=True (+ migration) once login is implemented
     username: Mapped[str] = mapped_column(
         String(250),
         nullable=False,
+        unique=True,
     )
 
-    # TODO: store a password hash (e.g. bcrypt/argon2), never the plain password
-    password: Mapped[str] = mapped_column(
+    # Argon2 hash from app.security; the plain password is never stored
+    password_hash: Mapped[str] = mapped_column(
         String(250),
         nullable=False,
     )
