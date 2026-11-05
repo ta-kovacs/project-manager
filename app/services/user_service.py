@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.repositories import user_repository
 from app.schemas.user_schema import UserCreate
-from app.security import hash_password
+from app.security import hash_password, verify_dummy_password, verify_password
 
 
 class UsernameTakenError(Exception):
@@ -26,3 +26,14 @@ def create_user(session: Session, user_create: UserCreate) -> User:
         # Another request registered the same username between the check and the insert.
         session.rollback()
         raise UsernameTakenError(user_create.username)
+
+
+def authenticate(session: Session, username: str, password: str) -> User | None:
+    """Return the user if the credentials are valid, otherwise None."""
+    user = user_repository.get_by_username(session, username)
+    if user is None:
+        verify_dummy_password(password)
+        return None
+    if not verify_password(password, user.password_hash):
+        return None
+    return user

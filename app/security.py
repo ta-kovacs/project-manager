@@ -10,3 +10,12 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, password_hash: str) -> bool:
     return _password_hash.verify(password, password_hash)
+
+
+# Verified against when the username doesn't exist, so a failed login takes
+# the same time whether or not the user is registered.
+_DUMMY_HASH = hash_password("dummy-password-for-timing")
+
+
+def verify_dummy_password(password: str) -> None:
+    _password_hash.verify(password, _DUMMY_HASH)
