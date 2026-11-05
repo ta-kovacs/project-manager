@@ -5,3 +5,5 @@ __pycache__
 .vscode/
 
 TASK.md
+.pytest_cache/
+test-results.xml
