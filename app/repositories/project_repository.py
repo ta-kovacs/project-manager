@@ -37,3 +37,11 @@ def list_for_user(session: Session, user_id: int) -> list[Project]:
 def get_membership(session: Session, project_id: int, user_id: int) -> ProjectUser | None:
     """The user's membership in the project (with `.project` and `.role`), or None if they aren't a member."""
     return session.get(ProjectUser, (project_id, user_id))
+
+
+def update_project(session: Session, project: Project, name: str, description: str | None) -> Project:
+    project.name = name
+    project.description = description
+    session.commit()
+    session.refresh(project)
+    return project

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.project_schema import ProjectCreate, ProjectRead
+from app.schemas.project_schema import ProjectCreate, ProjectRead, ProjectUpdate
 from app.services import project_service
 
 router = APIRouter(
@@ -49,5 +49,23 @@ def get_project_info(
     """A project's full info, if the caller is its owner or a participant."""
     try:
         return project_service.get_project(session, user, project_id)
+    except project_service.ProjectNotFoundError:
+        raise _project_not_found()
+
+
+@router.put(
+    "/project/{project_id}/info",
+    response_model=ProjectRead,
+    responses={404: {"description": "Project doesn't exist or the caller has no access"}},
+)
+def update_project_info(
+    project_id: int,
+    project_update: ProjectUpdate,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+):
+    """Replace a project's name and description (owner or participant); returns the updated info."""
+    try:
+        return project_service.update_project(session, user, project_id, project_update)
     except project_service.ProjectNotFoundError:
         raise _project_not_found()

@@ -13,6 +13,10 @@ class ProjectCreate(BaseModel):
     description: ProjectDescription | None = None
 
 
+class ProjectUpdate(ProjectCreate):
+    """Replaces a project's details: an omitted description is cleared."""
+
+
 class DocumentRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

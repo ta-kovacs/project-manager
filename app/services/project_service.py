@@ -4,7 +4,7 @@ from app.models.project import Project
 from app.models.project_user import ProjectUser
 from app.models.user import User
 from app.repositories import project_repository
-from app.schemas.project_schema import ProjectCreate
+from app.schemas.project_schema import ProjectCreate, ProjectUpdate
 
 
 class ProjectNotFoundError(Exception):
@@ -36,3 +36,14 @@ def _get_membership(session: Session, user: User, project_id: int) -> ProjectUse
 def get_project(session: Session, user: User, project_id: int) -> Project:
     """The project, if `user` is its owner or a participant."""
     return _get_membership(session, user, project_id).project
+
+
+def update_project(session: Session, user: User, project_id: int, project_update: ProjectUpdate) -> Project:
+    """Replace the project's details; owners and participants may both do this."""
+    project = get_project(session, user, project_id)
+    return project_repository.update_project(
+        session,
+        project,
+        name=project_update.name,
+        description=project_update.description,
+    )
