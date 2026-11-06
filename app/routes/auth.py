@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.config import ACCESS_TOKEN_MAX_AGE
 from app.database import get_db
-from app.schemas.user_schema import LoginRequest, UserCreate, UserRead
+from app.schemas.user_schema import LoginRequest, Token, UserCreate, UserRead
+from app.security import create_access_token
 from app.services import user_service
 
 router = APIRouter(tags=["auth"])
@@ -24,17 +26,17 @@ def create_user(
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Username is already taken")
 
 
-# TODO: issue an access token (JWT) here once authorization is implemented
 @router.post(
     "/login",
-    response_model=UserRead,
+    response_model=Token,
     responses={401: {"description": "Invalid username or password"}},
 )
 def login(
     credentials: LoginRequest,
     session: Session = Depends(get_db),
 ):
+    """Exchange a username and password for an access token (JWT), valid for one hour."""
     user = user_service.authenticate(session, credentials.username, credentials.password)
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
-    return user
+    return Token(access_token=create_access_token(user.id), expires_in=ACCESS_TOKEN_MAX_AGE)

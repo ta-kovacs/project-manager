@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -23,4 +25,12 @@ class UserRead(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+class Token(BaseModel):
+    """An access token for the `Authorization: Bearer <access_token>` header of protected requests."""
+
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    expires_in: int = Field(description="Seconds until the access token expires")
 
