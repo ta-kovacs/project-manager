@@ -10,6 +10,7 @@ import app.models  # noqa: F401  (registers every model on Base.metadata)
 from app.database import get_db
 from app.main import app
 from app.models.base import Base
+from app.models.document import Document
 from app.models.project_user import ProjectRole, ProjectUser
 from app.models.user import User
 
@@ -210,3 +211,28 @@ def update_project_info(client, auth, updated_data):
         )
 
     return _update_project_info
+
+
+@pytest.fixture
+def document(project, db_session):
+    """A document attached to `project`; inserted directly as there is no upload endpoint yet."""
+    document = Document(
+        project_id=project["id"],
+        storage_key=f"projects/{project['id']}/spec.pdf",
+        original_filename="spec.pdf",
+        content_type="application/pdf",
+    )
+    db_session.add(document)
+    db_session.commit()
+    return document
+
+
+@pytest.fixture
+def delete_project(client, auth):
+    """DELETE /project/{id} as the default user; pass `auth` to send other credentials (None for none)."""
+    default_auth = auth
+
+    def _delete_project(project_id, *, auth=default_auth):
+        return client.delete(f"/project/{project_id}", auth=auth)
+
+    return _delete_project
