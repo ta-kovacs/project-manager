@@ -124,10 +124,10 @@ def test_upload_documents_storage_failure_removes_written_files(
     real_save = storage.save
     saved = []
 
-    def save_then_fail(key, data):
+    def save_then_fail(key, data, content_type):
         if saved:
             raise OSError("disk full")
-        real_save(key, data)
+        real_save(key, data, content_type)
         saved.append(key)
 
     monkeypatch.setattr(storage, "save", save_then_fail)

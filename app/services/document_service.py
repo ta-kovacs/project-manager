@@ -109,7 +109,7 @@ def upload_documents(
     try:
         for name, content_type, data in checked:
             key = _new_storage_key(project.id)
-            storage.save(key, data)
+            storage.save(key, data, content_type)
             documents.append(
                 Document(project_id=project.id, storage_key=key, original_filename=name, content_type=content_type)
             )
@@ -141,7 +141,7 @@ def replace_document(
     # Store the new file under a fresh key and only drop the old one once the database
     # points at the new file, so a failure never leaves the document without a file.
     old_key, new_key = document.storage_key, _new_storage_key(document.project_id)
-    storage.save(new_key, data)
+    storage.save(new_key, data, content_type)
     try:
         document = document_repository.update(session, document, new_key, name, content_type)
     except Exception:
