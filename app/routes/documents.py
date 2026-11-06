@@ -1,11 +1,13 @@
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.config import MAX_DOCUMENT_SIZE
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.schemas.project_schema import DocumentRead
 from app.services import document_service
 from app.storage import Storage, get_storage
 
@@ -51,3 +53,38 @@ def download_document(
         media_type=document.content_type,
         headers={"Content-Disposition": _attachment(document.original_filename)},
     )
+
+
+@router.put(
+    "/document/{document_id}",
+    response_model=DocumentRead,
+    responses={
+        413: {"description": "File is larger than the allowed size"},
+        415: {"description": "File is not a PDF or DOCX document"},
+        **_NOT_FOUND,
+    },
+)
+def replace_document(
+    document_id: int,
+    file: UploadFile = File(description="The new PDF or DOCX file"),
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+    storage: Storage = Depends(get_storage),
+):
+    """Replace a document's file (owner or participant); returns the updated document."""
+    data = file.file.read(MAX_DOCUMENT_SIZE + 1)  # one byte over the limit is enough to reject it
+    try:
+        return document_service.replace_document(session, storage, user, document_id, file.filename, data)
+    except document_service.DocumentNotFoundError:
+        raise _document_not_found()
+    except document_service.UnsupportedDocumentTypeError:
+        raise HTTPException(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Only PDF and DOCX documents are accepted"
+        )
+    except document_service.DocumentTooLargeError:
+        raise HTTPException(
+            status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"Documents can be at most {MAX_DOCUMENT_SIZE} bytes",
+        )
+    except document_service.EmptyDocumentError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail="File is empty")
