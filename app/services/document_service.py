@@ -7,6 +7,7 @@ from app.models.document import Document
 from app.models.project_user import ProjectRole
 from app.models.user import User
 from app.repositories import document_repository, project_repository
+from app.services import project_service
 from app.storage import Storage, StoredFileNotFoundError
 
 
@@ -66,6 +67,15 @@ def get_document(session: Session, user: User, document_id: int) -> Document:
     if document is None or project_repository.get_membership(session, document.project_id, user.id) is None:
         raise DocumentNotFoundError(document_id)
     return document
+
+
+def list_project_documents(session: Session, user: User, project_id: int) -> list[Document]:
+    """The project's documents, if `user` is its owner or a participant.
+
+    Raises project_service.ProjectNotFoundError otherwise.
+    """
+    project = project_service.get_project(session, user, project_id)
+    return document_repository.list_for_project(session, project.id)
 
 
 def download_document(session: Session, storage: Storage, user: User, document_id: int) -> tuple[Document, bytes]:

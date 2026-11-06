@@ -8,7 +8,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.project_schema import DocumentRead
-from app.services import document_service
+from app.services import document_service, project_service
 from app.storage import Storage, get_storage
 
 router = APIRouter(
@@ -17,16 +17,38 @@ router = APIRouter(
 )
 
 _NOT_FOUND = {404: {"description": "Document doesn't exist or the caller has no access to its project"}}
+_PROJECT_NOT_FOUND = {404: {"description": "Project doesn't exist or the caller has no access"}}
 
 
 def _document_not_found() -> HTTPException:
     return HTTPException(status.HTTP_404_NOT_FOUND, detail="Document not found")
 
 
+def _project_not_found() -> HTTPException:
+    return HTTPException(status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+
 def _attachment(filename: str) -> str:
     """Content-Disposition value that keeps non-ASCII filenames intact (RFC 6266 / 5987)."""
     ascii_fallback = filename.encode("ascii", "replace").decode().replace('"', "")
     return f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{quote(filename)}"
+
+
+@router.get(
+    "/project/{project_id}/documents",
+    response_model=list[DocumentRead],
+    responses=_PROJECT_NOT_FOUND,
+)
+def list_project_documents(
+    project_id: int,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+):
+    """All of a project's documents, if the caller is its owner or a participant."""
+    try:
+        return document_service.list_project_documents(session, user, project_id)
+    except project_service.ProjectNotFoundError:
+        raise _project_not_found()
 
 
 @router.get(
