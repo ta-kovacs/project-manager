@@ -2,6 +2,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
+from app.models.project_user import ProjectRole
 from app.schemas.user_schema import UserRead
 
 ProjectName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=250)]
@@ -34,3 +35,12 @@ class ProjectRead(BaseModel):
     description: str | None
     owner: UserRead
     documents: list[DocumentRead]
+
+
+class MemberRead(BaseModel):
+    """A user's access to a project."""
+    model_config = ConfigDict(from_attributes=True)
+
+    project_id: int
+    user: UserRead
+    role: ProjectRole

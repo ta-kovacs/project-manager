@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.project_schema import ProjectCreate, ProjectRead, ProjectUpdate
+from app.schemas.project_schema import MemberRead, ProjectCreate, ProjectRead, ProjectUpdate
 from app.services import project_service
 from app.storage import Storage, get_storage
 
@@ -93,3 +93,32 @@ def delete_project(
         raise _project_not_found()
     except project_service.NotProjectOwnerError:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Only the project owner can delete it")
+
+
+@router.post(
+    "/project/{project_id}/invite",
+    response_model=MemberRead,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        403: {"description": "Only the project's owner can invite users"},
+        404: {"description": "Project or user doesn't exist, or the caller has no access to the project"},
+        409: {"description": "The user already has access to the project"},
+    },
+)
+def invite_user(
+    project_id: int,
+    username: str = Query(alias="user", min_length=1, description="Login of the user to invite"),
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+):
+    """Grant a user participant access to a project (owner only)."""
+    try:
+        return project_service.invite_user(session, user, project_id, username)
+    except project_service.ProjectNotFoundError:
+        raise _project_not_found()
+    except project_service.NotProjectOwnerError:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Only the project owner can invite users")
+    except project_service.UserNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="User not found")
+    except project_service.AlreadyMemberError:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="User already has access to the project")

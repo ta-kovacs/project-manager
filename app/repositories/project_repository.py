@@ -51,3 +51,11 @@ def delete_project(session: Session, project: Project) -> None:
     """Delete the project; its memberships and documents go with it (ORM cascade)."""
     session.delete(project)
     session.commit()
+
+
+def add_member(session: Session, project: Project, user: User, role: ProjectRole) -> ProjectUser:
+    membership = ProjectUser(project=project, user=user, role=role)
+    session.add(membership)
+    session.commit()
+    session.refresh(membership)
+    return membership
