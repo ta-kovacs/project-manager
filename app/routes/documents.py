@@ -88,3 +88,23 @@ def replace_document(
         )
     except document_service.EmptyDocumentError:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail="File is empty")
+
+
+@router.delete(
+    "/document/{document_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={403: {"description": "Only the project's owner can delete documents"}, **_NOT_FOUND},
+)
+def delete_document(
+    document_id: int,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+    storage: Storage = Depends(get_storage),
+):
+    """Delete a document and remove it from its project (project owner only)."""
+    try:
+        document_service.delete_document(session, storage, user, document_id)
+    except document_service.DocumentNotFoundError:
+        raise _document_not_found()
+    except document_service.NotProjectOwnerError:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Only the project owner can delete documents")

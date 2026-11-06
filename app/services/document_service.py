@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.config import MAX_DOCUMENT_SIZE
 from app.models.document import Document
+from app.models.project_user import ProjectRole
 from app.models.user import User
 from app.repositories import document_repository, project_repository
 from app.storage import Storage, StoredFileNotFoundError
@@ -11,6 +12,10 @@ from app.storage import Storage, StoredFileNotFoundError
 
 class DocumentNotFoundError(Exception):
     """The document doesn't exist, or the user has no access to its project (not distinguished)."""
+
+
+class NotProjectOwnerError(Exception):
+    """The user is a member of the document's project, but only its owner may do this."""
 
 
 class DocumentFileMissingError(Exception):
@@ -91,3 +96,22 @@ def replace_document(
         raise
     storage.delete(old_key)
     return document
+
+
+def delete_document(session: Session, storage: Storage, user: User, document_id: int) -> None:
+    """Delete the document and its file; only the project's owner may do this
+    (TASK.md: participants can modify, but not delete)."""
+    document = document_repository.get(session, document_id)
+    membership = (
+        None if document is None
+        else project_repository.get_membership(session, document.project_id, user.id)
+    )
+    if membership is None:
+        raise DocumentNotFoundError(document_id)
+    if membership.role != ProjectRole.OWNER:
+        raise NotProjectOwnerError(document_id)
+
+    storage_key = document.storage_key
+    document_repository.delete(session, document)
+    # Removed after the commit: a failure here leaves an orphaned file, never a document without one.
+    storage.delete(storage_key)

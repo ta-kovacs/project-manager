@@ -14,3 +14,8 @@ def update(session: Session, document: Document, storage_key: str, original_file
     session.commit()
     session.refresh(document)
     return document
+
+
+def delete(session: Session, document: Document) -> None:
+    session.delete(document)
+    session.commit()
