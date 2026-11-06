@@ -230,21 +230,30 @@ def document_content():
 
 
 @pytest.fixture
-def document(project, db_session, storage, document_content):
-    """A PDF attached to `project`, with its file in `storage`.
+def make_document(db_session, storage):
+    """Attach a PDF to a project, with its file in `storage`; returns the Document.
 
-    Inserted directly as there is no upload endpoint yet.
+    Inserted directly, so tests of other endpoints don't depend on the upload endpoint.
     """
-    document = Document(
-        project_id=project["id"],
-        storage_key=f"projects/{project['id']}/documents/spec",
-        original_filename="spec.pdf",
-        content_type="application/pdf",
-    )
-    storage.save(document.storage_key, document_content)
-    db_session.add(document)
-    db_session.commit()
-    return document
+    def _make_document(project_id, *, filename="spec.pdf", content=b"%PDF-1.4 test document"):
+        document = Document(
+            project_id=project_id,
+            storage_key=f"projects/{project_id}/documents/{filename}",
+            original_filename=filename,
+            content_type="application/pdf",
+        )
+        storage.save(document.storage_key, content)
+        db_session.add(document)
+        db_session.commit()
+        return document
+
+    return _make_document
+
+
+@pytest.fixture
+def document(project, make_document, document_content):
+    """A PDF attached to `project`, with its file in `storage`."""
+    return make_document(project["id"], content=document_content)
 
 
 @pytest.fixture
@@ -309,3 +318,14 @@ def delete_document(client, auth):
         return client.delete(f"/document/{document_id}", auth=auth)
 
     return _delete_document
+
+
+@pytest.fixture
+def list_project_documents(client, auth):
+    """GET /project/{id}/documents as the default user; pass `auth` to send other credentials (None for none)."""
+    default_auth = auth
+
+    def _list_project_documents(project_id, *, auth=default_auth):
+        return client.get(f"/project/{project_id}/documents", auth=auth)
+
+    return _list_project_documents
