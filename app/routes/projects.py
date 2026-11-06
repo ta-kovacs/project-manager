@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -30,3 +30,24 @@ def list_projects(
 ):
     """All projects the caller owns or participates in, with their full info."""
     return project_service.list_projects(session, user)
+
+
+def _project_not_found() -> HTTPException:
+    return HTTPException(status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+
+@router.get(
+    "/project/{project_id}/info",
+    response_model=ProjectRead,
+    responses={404: {"description": "Project doesn't exist or the caller has no access"}},
+)
+def get_project_info(
+    project_id: int,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+):
+    """A project's full info, if the caller is its owner or a participant."""
+    try:
+        return project_service.get_project(session, user, project_id)
+    except project_service.ProjectNotFoundError:
+        raise _project_not_found()

@@ -1,9 +1,14 @@
 from sqlalchemy.orm import Session
 
 from app.models.project import Project
+from app.models.project_user import ProjectUser
 from app.models.user import User
 from app.repositories import project_repository
 from app.schemas.project_schema import ProjectCreate
+
+
+class ProjectNotFoundError(Exception):
+    """The project doesn't exist, or the user isn't a member (the two aren't distinguished)."""
 
 
 def create_project(session: Session, user: User, project_create: ProjectCreate) -> Project:
@@ -19,3 +24,15 @@ def create_project(session: Session, user: User, project_create: ProjectCreate) 
 def list_projects(session: Session, user: User) -> list[Project]:
     """All projects `user` can access."""
     return project_repository.list_for_user(session, user.id)
+
+
+def _get_membership(session: Session, user: User, project_id: int) -> ProjectUser:
+    membership = project_repository.get_membership(session, project_id, user.id)
+    if membership is None:
+        raise ProjectNotFoundError(project_id)
+    return membership
+
+
+def get_project(session: Session, user: User, project_id: int) -> Project:
+    """The project, if `user` is its owner or a participant."""
+    return _get_membership(session, user, project_id).project

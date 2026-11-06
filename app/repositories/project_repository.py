@@ -32,3 +32,8 @@ def list_for_user(session: Session, user_id: int) -> list[Project]:
         .order_by(Project.id)
     )
     return list(session.scalars(statement))
+
+
+def get_membership(session: Session, project_id: int, user_id: int) -> ProjectUser | None:
+    """The user's membership in the project (with `.project` and `.role`), or None if they aren't a member."""
+    return session.get(ProjectUser, (project_id, user_id))
