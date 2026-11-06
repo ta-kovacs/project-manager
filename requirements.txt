@@ -5,3 +5,5 @@ psycopg[binary]==3.3.6
 alembic==1.20.1
 pydantic==2.14.2
 pwdlib[argon2]==0.3.1
+python-multipart==0.0.33
+boto3==1.43.125

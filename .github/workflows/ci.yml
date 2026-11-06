@@ -20,7 +20,13 @@ jobs:
         run: python -m compileall -q app/
 
   test:
+    name: test (${{ matrix.storage }} storage)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # "s3" runs the whole suite against a moto-mocked S3 bucket (no AWS account needed)
+        storage: [local, s3]
     services:
       postgres:
         image: postgres:17
@@ -38,6 +44,7 @@ jobs:
     env:
       # Run the tests against real Postgres in CI (locally they default to in-memory SQLite).
       TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5433/testdb
+      TEST_STORAGE_BACKEND: ${{ matrix.storage }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -52,7 +59,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: test-results-${{ matrix.storage }}
           path: test-results.xml
 
   docker:
@@ -126,6 +133,8 @@ jobs:
           echo "uri=$image" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to EC2 (migrations + app) via SSM
+        env:
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
         run: bash .github/scripts/deploy-ec2.sh "${{ vars.EC2_INSTANCE_ID }}" "${{ steps.image.outputs.uri }}"
 
       - name: Summary

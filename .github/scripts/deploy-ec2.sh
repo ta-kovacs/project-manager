@@ -6,12 +6,13 @@
 # checks /health.
 #
 # Usage: deploy-ec2.sh <instance-id> <image-uri>
-# Env:   AWS_REGION (required), SSM_PARAMETER_PREFIX (default /project-manager)
+# Env:   AWS_REGION and S3_BUCKET (required), SSM_PARAMETER_PREFIX (default /project-manager)
 set -euo pipefail
 
 instance_id=$1
 image=$2
 region=${AWS_REGION:?AWS_REGION must be set}
+s3_bucket=${S3_BUCKET:?S3_BUCKET must be set (the bucket holding document files)}
 registry=${image%%/*}
 param_prefix=${SSM_PARAMETER_PREFIX:-/project-manager}
 compose_b64=$(base64 -w0 docker-compose.prod.yaml)
@@ -23,7 +24,7 @@ cd /opt/project-manager
 echo '$compose_b64' | base64 -d > docker-compose.prod.yaml
 db_password=\$(aws ssm get-parameter --region $region --name $param_prefix/postgres-password --with-decryption --query Parameter.Value --output text)
 umask 077
-printf 'APP_IMAGE=%s\nPOSTGRES_PASSWORD=%s\n' '$image' "\$db_password" > .env
+printf 'APP_IMAGE=%s\nPOSTGRES_PASSWORD=%s\nS3_BUCKET=%s\nAWS_REGION=%s\n' '$image' "\$db_password" '$s3_bucket' '$region' > .env
 aws ecr get-login-password --region $region | docker login --username AWS --password-stdin $registry
 docker compose -f docker-compose.prod.yaml pull app
 docker compose -f docker-compose.prod.yaml up -d --wait db

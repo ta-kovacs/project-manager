@@ -7,3 +7,4 @@ __pycache__
 TASK.md
 .pytest_cache/
 test-results.xml
+storage/

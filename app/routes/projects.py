@@ -6,6 +6,7 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.project_schema import ProjectCreate, ProjectRead, ProjectUpdate
 from app.services import project_service
+from app.storage import Storage, get_storage
 
 router = APIRouter(
     tags=["projects"],
@@ -83,10 +84,11 @@ def delete_project(
     project_id: int,
     user: User = Depends(get_current_user),
     session: Session = Depends(get_db),
+    storage: Storage = Depends(get_storage),
 ):
-    """Delete a project and its documents (owner only)."""
+    """Delete a project and its documents, including their stored files (owner only)."""
     try:
-        project_service.delete_project(session, user, project_id)
+        project_service.delete_project(session, storage, user, project_id)
     except project_service.ProjectNotFoundError:
         raise _project_not_found()
     except project_service.NotProjectOwnerError:

@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routes import auth, projects
+from app.routes import auth, documents, projects
 
 app = FastAPI(
     title="Project Manager API"
@@ -7,6 +7,7 @@ app = FastAPI(
 
 app.include_router(auth.router)
 app.include_router(projects.router)
+app.include_router(documents.router)
 
 
 @app.get("/health")

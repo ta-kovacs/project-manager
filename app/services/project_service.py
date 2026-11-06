@@ -5,6 +5,7 @@ from app.models.project_user import ProjectRole, ProjectUser
 from app.models.user import User
 from app.repositories import project_repository
 from app.schemas.project_schema import ProjectCreate, ProjectUpdate
+from app.storage import Storage
 
 
 class ProjectNotFoundError(Exception):
@@ -53,10 +54,15 @@ def update_project(session: Session, user: User, project_id: int, project_update
     )
 
 
-def delete_project(session: Session, user: User, project_id: int) -> None:
-    """Delete the project and its documents; only its owner may do this."""
+def delete_project(session: Session, storage: Storage, user: User, project_id: int) -> None:
+    """Delete the project with its documents and their files; only its owner may do this."""
     membership = _get_membership(session, user, project_id)
     if membership.role != ProjectRole.OWNER:
         raise NotProjectOwnerError(project_id)
-    # TODO: also delete the documents' files from storage (S3) once uploads are implemented
-    project_repository.delete_project(session, membership.project)
+
+    project = membership.project
+    storage_keys = [document.storage_key for document in project.documents]
+    project_repository.delete_project(session, project)
+    # Removed after the commit: a failure here leaves orphaned files, never documents without one.
+    for key in storage_keys:
+        storage.delete(key)

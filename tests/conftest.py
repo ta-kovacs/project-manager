@@ -1,7 +1,9 @@
 import os
 
+import boto3
 import pytest
 from fastapi.testclient import TestClient
+from moto import mock_aws
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -13,6 +15,9 @@ from app.models.base import Base
 from app.models.document import Document
 from app.models.project_user import ProjectRole, ProjectUser
 from app.models.user import User
+from app.routes import documents as document_routes
+from app.services import document_service
+from app.storage import LocalStorage, S3Storage, get_storage
 
 # CI points this at a throwaway Postgres; locally the tests fall back to in-memory SQLite.
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite://")
@@ -29,6 +34,12 @@ else:
 
 TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
+# Which storage backend the API tests use: "local" (default) or "s3" (a moto-mocked bucket).
+# CI runs the suite with both.
+TEST_STORAGE_BACKEND = os.getenv("TEST_STORAGE_BACKEND", "local")
+TEST_BUCKET = "test-project-documents"
+TEST_REGION = "eu-north-1"
+
 
 # --- database and client -----------------------------------------------------
 
@@ -44,12 +55,52 @@ def db_session():
 
 
 @pytest.fixture
-def client(db_session):
-    """API client whose requests use the test database."""
+def s3_bucket():
+    """Name of the mocked S3 bucket that `s3_client` creates."""
+    return TEST_BUCKET
+
+
+@pytest.fixture
+def s3_client(monkeypatch):
+    """A boto3 S3 client against moto's in-memory S3, with an empty TEST_BUCKET.
+
+    Fake credentials are set so that no request can ever reach a real AWS account.
+    """
+    for name in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"):
+        monkeypatch.setenv(name, "testing")
+    monkeypatch.setenv("AWS_DEFAULT_REGION", TEST_REGION)
+    with mock_aws():
+        client = boto3.client("s3", region_name=TEST_REGION)
+        client.create_bucket(Bucket=TEST_BUCKET, CreateBucketConfiguration={"LocationConstraint": TEST_REGION})
+        yield client
+
+
+def _make_storage(backend, request, tmp_path):
+    if backend == "s3":
+        return S3Storage(TEST_BUCKET, client=request.getfixturevalue("s3_client"))
+    return LocalStorage(tmp_path / "storage")
+
+
+@pytest.fixture
+def storage(request, tmp_path):
+    """Document file storage for the test: TEST_STORAGE_BACKEND decides local disk or mocked S3."""
+    return _make_storage(TEST_STORAGE_BACKEND, request, tmp_path)
+
+
+@pytest.fixture(params=["local", "s3"])
+def any_storage(request, tmp_path):
+    """Each storage backend in turn; tests using it run once per backend."""
+    return _make_storage(request.param, request, tmp_path)
+
+
+@pytest.fixture
+def client(db_session, storage):
+    """API client whose requests use the test database and test storage."""
     def override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_storage] = lambda: storage
     try:
         with TestClient(app) as test_client:
             yield test_client
@@ -214,17 +265,36 @@ def update_project_info(client, auth, updated_data):
 
 
 @pytest.fixture
-def document(project, db_session):
-    """A document attached to `project`; inserted directly as there is no upload endpoint yet."""
-    document = Document(
-        project_id=project["id"],
-        storage_key=f"projects/{project['id']}/spec.pdf",
-        original_filename="spec.pdf",
-        content_type="application/pdf",
-    )
-    db_session.add(document)
-    db_session.commit()
-    return document
+def document_content():
+    """Bytes of the `document` fixture's file."""
+    return b"%PDF-1.4 test document"
+
+
+@pytest.fixture
+def make_document(db_session, storage):
+    """Attach a PDF to a project, with its file in `storage`; returns the Document.
+
+    Inserted directly, so tests of other endpoints don't depend on the upload endpoint.
+    """
+    def _make_document(project_id, *, filename="spec.pdf", content=b"%PDF-1.4 test document"):
+        document = Document(
+            project_id=project_id,
+            storage_key=f"projects/{project_id}/documents/{filename}",
+            original_filename=filename,
+            content_type="application/pdf",
+        )
+        storage.save(document.storage_key, content, "application/pdf")
+        db_session.add(document)
+        db_session.commit()
+        return document
+
+    return _make_document
+
+
+@pytest.fixture
+def document(project, make_document, document_content):
+    """A PDF attached to `project`, with its file in `storage`."""
+    return make_document(project["id"], content=document_content)
 
 
 @pytest.fixture
@@ -236,3 +306,101 @@ def delete_project(client, auth):
         return client.delete(f"/project/{project_id}", auth=auth)
 
     return _delete_project
+
+
+# --- documents ---------------------------------------------------------------
+
+@pytest.fixture
+def download_document(client, auth):
+    """GET /document/{id} as the default user; pass `auth` to send other credentials (None for none)."""
+    default_auth = auth
+
+    def _download_document(document_id, *, auth=default_auth):
+        return client.get(f"/document/{document_id}", auth=auth)
+
+    return _download_document
+
+
+@pytest.fixture
+def new_file():
+    """A valid replacement file for a document."""
+    return {"filename": "report.docx", "content": b"PK\x03\x04 test docx"}
+
+
+@pytest.fixture
+def replace_document(client, auth, new_file):
+    """PUT /document/{id} as the default user, uploading `new_file`; pass `filename`/`content` to
+    override it, `exclude=["file"]` to send no file, `auth` for other credentials (None for none)."""
+    default_auth = auth
+
+    def _replace_document(document_id, *, auth=default_auth, exclude=(), **overrides):
+        upload = {**new_file, **overrides}
+        files = None if "file" in exclude else {"file": (upload["filename"], upload["content"])}
+        return client.put(f"/document/{document_id}", files=files, auth=auth)
+
+    return _replace_document
+
+
+@pytest.fixture
+def max_document_size(monkeypatch):
+    """Lowers the document size limit to 16 bytes for the test; returns the limit."""
+    limit = 16
+    monkeypatch.setattr(document_service, "MAX_DOCUMENT_SIZE", limit)
+    monkeypatch.setattr(document_routes, "MAX_DOCUMENT_SIZE", limit)
+    return limit
+
+
+@pytest.fixture
+def delete_document(client, auth):
+    """DELETE /document/{id} as the default user; pass `auth` to send other credentials (None for none)."""
+    default_auth = auth
+
+    def _delete_document(document_id, *, auth=default_auth):
+        return client.delete(f"/document/{document_id}", auth=auth)
+
+    return _delete_document
+
+
+@pytest.fixture
+def list_project_documents(client, auth):
+    """GET /project/{id}/documents as the default user; pass `auth` to send other credentials (None for none)."""
+    default_auth = auth
+
+    def _list_project_documents(project_id, *, auth=default_auth):
+        return client.get(f"/project/{project_id}/documents", auth=auth)
+
+    return _list_project_documents
+
+
+@pytest.fixture
+def upload_files():
+    """Valid files for one upload, as (filename, content) pairs."""
+    return [("report.pdf", b"%PDF-1.4 report"), ("notes.docx", b"PK\x03\x04 notes")]
+
+
+@pytest.fixture
+def upload_documents(client, auth, upload_files):
+    """POST /project/{id}/documents as the default user, uploading `upload_files`; pass `files` to
+    upload others ([] for none), `auth` for other credentials (None for none)."""
+    default_auth = auth
+
+    def _upload_documents(project_id, *, auth=default_auth, files=None):
+        files = upload_files if files is None else files
+        multipart = [("files", (name, content)) for name, content in files] or None
+        return client.post(f"/project/{project_id}/documents", files=multipart, auth=auth)
+
+    return _upload_documents
+
+
+@pytest.fixture
+def stored_files(storage):
+    """Returns the keys of all files currently in `storage` (either backend)."""
+    def _stored_files():
+        if isinstance(storage, S3Storage):
+            response = storage.client.list_objects_v2(Bucket=storage.bucket)
+            return [item["Key"] for item in response.get("Contents", [])]
+        if not storage.root.exists():
+            return []
+        return [path.relative_to(storage.root).as_posix() for path in storage.root.rglob("*") if path.is_file()]
+
+    return _stored_files
