@@ -1,4 +1,5 @@
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.project import Project
 from app.models.project_user import ProjectRole, ProjectUser
@@ -15,3 +16,19 @@ def create_project(session: Session, name: str, description: str | None, owner: 
     session.commit()
     session.refresh(project)
     return project
+
+
+def list_for_user(session: Session, user_id: int) -> list[Project]:
+    """Projects the user is a member of (owner or participant), oldest first."""
+    statement = (
+        select(Project)
+        .join(ProjectUser)
+        .where(ProjectUser.user_id == user_id)
+        # load owners and documents up front instead of one query per project
+        .options(
+            selectinload(Project.members).selectinload(ProjectUser.user),
+            selectinload(Project.documents),
+        )
+        .order_by(Project.id)
+    )
+    return list(session.scalars(statement))

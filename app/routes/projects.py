@@ -21,3 +21,12 @@ def create_project(
 ):
     """Create a project; the caller becomes its owner."""
     return project_service.create_project(session, user, project_create)
+
+
+@router.get("/projects", response_model=list[ProjectRead])
+def list_projects(
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+):
+    """All projects the caller owns or participates in, with their full info."""
+    return project_service.list_projects(session, user)

@@ -14,3 +14,8 @@ def create_project(session: Session, user: User, project_create: ProjectCreate) 
         description=project_create.description,
         owner=user,
     )
+
+
+def list_projects(session: Session, user: User) -> list[Project]:
+    """All projects `user` can access."""
+    return project_repository.list_for_user(session, user.id)
