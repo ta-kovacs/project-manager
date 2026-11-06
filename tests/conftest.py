@@ -13,6 +13,8 @@ from app.models.base import Base
 from app.models.document import Document
 from app.models.project_user import ProjectRole, ProjectUser
 from app.models.user import User
+from app.routes import documents as document_routes
+from app.services import document_service
 from app.storage import LocalStorage, get_storage
 
 # CI points this at a throwaway Postgres; locally the tests fall back to in-memory SQLite.
@@ -267,3 +269,32 @@ def download_document(client, auth):
         return client.get(f"/document/{document_id}", auth=auth)
 
     return _download_document
+
+
+@pytest.fixture
+def new_file():
+    """A valid replacement file for a document."""
+    return {"filename": "report.docx", "content": b"PK\x03\x04 test docx"}
+
+
+@pytest.fixture
+def replace_document(client, auth, new_file):
+    """PUT /document/{id} as the default user, uploading `new_file`; pass `filename`/`content` to
+    override it, `exclude=["file"]` to send no file, `auth` for other credentials (None for none)."""
+    default_auth = auth
+
+    def _replace_document(document_id, *, auth=default_auth, exclude=(), **overrides):
+        upload = {**new_file, **overrides}
+        files = None if "file" in exclude else {"file": (upload["filename"], upload["content"])}
+        return client.put(f"/document/{document_id}", files=files, auth=auth)
+
+    return _replace_document
+
+
+@pytest.fixture
+def max_document_size(monkeypatch):
+    """Lowers the document size limit to 16 bytes for the test; returns the limit."""
+    limit = 16
+    monkeypatch.setattr(document_service, "MAX_DOCUMENT_SIZE", limit)
+    monkeypatch.setattr(document_routes, "MAX_DOCUMENT_SIZE", limit)
+    return limit
