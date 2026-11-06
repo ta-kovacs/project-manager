@@ -298,3 +298,14 @@ def max_document_size(monkeypatch):
     monkeypatch.setattr(document_service, "MAX_DOCUMENT_SIZE", limit)
     monkeypatch.setattr(document_routes, "MAX_DOCUMENT_SIZE", limit)
     return limit
+
+
+@pytest.fixture
+def delete_document(client, auth):
+    """DELETE /document/{id} as the default user; pass `auth` to send other credentials (None for none)."""
+    default_auth = auth
+
+    def _delete_document(document_id, *, auth=default_auth):
+        return client.delete(f"/document/{document_id}", auth=auth)
+
+    return _delete_document
