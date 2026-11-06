@@ -222,14 +222,24 @@ def update_project_info(client, auth, updated_data):
 
 
 @pytest.fixture
-def document(project, db_session):
-    """A document attached to `project`; inserted directly as there is no upload endpoint yet."""
+def document_content():
+    """Bytes of the `document` fixture's file."""
+    return b"%PDF-1.4 test document"
+
+
+@pytest.fixture
+def document(project, db_session, storage, document_content):
+    """A PDF attached to `project`, with its file in `storage`.
+
+    Inserted directly as there is no upload endpoint yet.
+    """
     document = Document(
         project_id=project["id"],
-        storage_key=f"projects/{project['id']}/spec.pdf",
+        storage_key=f"projects/{project['id']}/documents/spec",
         original_filename="spec.pdf",
         content_type="application/pdf",
     )
+    storage.save(document.storage_key, document_content)
     db_session.add(document)
     db_session.commit()
     return document
@@ -244,3 +254,16 @@ def delete_project(client, auth):
         return client.delete(f"/project/{project_id}", auth=auth)
 
     return _delete_project
+
+
+# --- documents ---------------------------------------------------------------
+
+@pytest.fixture
+def download_document(client, auth):
+    """GET /document/{id} as the default user; pass `auth` to send other credentials (None for none)."""
+    default_auth = auth
+
+    def _download_document(document_id, *, auth=default_auth):
+        return client.get(f"/document/{document_id}", auth=auth)
+
+    return _download_document
