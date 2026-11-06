@@ -223,7 +223,7 @@ def project(create_project):
 def participant_auth(project, other_auth, db_session):
     """Credentials of the second user, added to `project` as a participant.
 
-    There is no invite endpoint yet, so the membership is inserted directly.
+    The membership is inserted directly, so tests of other endpoints don't depend on the invite endpoint.
     """
     other_user = db_session.query(User).filter_by(username=other_auth[0]).one()
     db_session.add(ProjectUser(project_id=project["id"], user_id=other_user.id, role=ProjectRole.PARTICIPANT))
@@ -404,3 +404,19 @@ def stored_files(storage):
         return [path.relative_to(storage.root).as_posix() for path in storage.root.rglob("*") if path.is_file()]
 
     return _stored_files
+
+
+
+# --- sharing -----------------------------------------------------------------
+
+@pytest.fixture
+def invite_user(client, auth):
+    """POST /project/{id}/invite?user=<username> as the default user; `username=None` leaves the
+    parameter out, `auth` sends other credentials (None for none)."""
+    default_auth = auth
+
+    def _invite_user(project_id, username, *, auth=default_auth):
+        params = {} if username is None else {"user": username}
+        return client.post(f"/project/{project_id}/invite", params=params, auth=auth)
+
+    return _invite_user
