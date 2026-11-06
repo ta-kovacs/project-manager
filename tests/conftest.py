@@ -10,6 +10,8 @@ import app.models  # noqa: F401  (registers every model on Base.metadata)
 from app.database import get_db
 from app.main import app
 from app.models.base import Base
+from app.models.project_user import ProjectRole, ProjectUser
+from app.models.user import User
 
 # CI points this at a throwaway Postgres; locally the tests fall back to in-memory SQLite.
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite://")
@@ -155,3 +157,34 @@ def list_projects(client, auth):
         return client.get("/projects", auth=auth)
 
     return _list_projects
+
+
+@pytest.fixture
+def project(create_project):
+    """A project owned by the default user; returns its POST /projects response body."""
+    response = create_project()
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+@pytest.fixture
+def participant_auth(project, other_auth, db_session):
+    """Credentials of the second user, added to `project` as a participant.
+
+    There is no invite endpoint yet, so the membership is inserted directly.
+    """
+    other_user = db_session.query(User).filter_by(username=other_auth[0]).one()
+    db_session.add(ProjectUser(project_id=project["id"], user_id=other_user.id, role=ProjectRole.PARTICIPANT))
+    db_session.commit()
+    return other_auth
+
+
+@pytest.fixture
+def get_project_info(client, auth):
+    """GET /project/{id}/info as the default user; pass `auth` to send other credentials (None for none)."""
+    default_auth = auth
+
+    def _get_project_info(project_id, *, auth=default_auth):
+        return client.get(f"/project/{project_id}/info", auth=auth)
+
+    return _get_project_info
