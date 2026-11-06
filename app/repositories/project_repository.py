@@ -45,3 +45,9 @@ def update_project(session: Session, project: Project, name: str, description: s
     session.commit()
     session.refresh(project)
     return project
+
+
+def delete_project(session: Session, project: Project) -> None:
+    """Delete the project; its memberships and documents go with it (ORM cascade)."""
+    session.delete(project)
+    session.commit()

@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.models.project import Project
-from app.models.project_user import ProjectUser
+from app.models.project_user import ProjectRole, ProjectUser
 from app.models.user import User
 from app.repositories import project_repository
 from app.schemas.project_schema import ProjectCreate, ProjectUpdate
@@ -9,6 +9,10 @@ from app.schemas.project_schema import ProjectCreate, ProjectUpdate
 
 class ProjectNotFoundError(Exception):
     """The project doesn't exist, or the user isn't a member (the two aren't distinguished)."""
+
+
+class NotProjectOwnerError(Exception):
+    """The user is a member of the project, but the action is reserved for its owner."""
 
 
 def create_project(session: Session, user: User, project_create: ProjectCreate) -> Project:
@@ -47,3 +51,12 @@ def update_project(session: Session, user: User, project_id: int, project_update
         name=project_update.name,
         description=project_update.description,
     )
+
+
+def delete_project(session: Session, user: User, project_id: int) -> None:
+    """Delete the project and its documents; only its owner may do this."""
+    membership = _get_membership(session, user, project_id)
+    if membership.role != ProjectRole.OWNER:
+        raise NotProjectOwnerError(project_id)
+    # TODO: also delete the documents' files from storage (S3) once uploads are implemented
+    project_repository.delete_project(session, membership.project)
