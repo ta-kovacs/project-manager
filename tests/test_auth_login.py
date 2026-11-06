@@ -8,7 +8,7 @@ import pytest
 from app import security
 from app.config import JWT_SECRET_KEY
 from app.security import JWT_ALGORITHM, create_access_token, read_access_token
-from tests.conftest import BearerAuth
+from tests.helpers import BearerAuth
 
 
 def test_login_returns_access_token(login, registered_user):
