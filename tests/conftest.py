@@ -10,6 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401  (registers every model on Base.metadata)
 from app.database import get_db
+from app.mailer import get_mailer
 from app.main import app
 from app.models.base import Base
 from app.models.document import Document
@@ -93,14 +94,31 @@ def any_storage(request, tmp_path):
     return _make_storage(request.param, request, tmp_path)
 
 
+class RecordingMailer:
+    """Keeps sent emails in `sent` instead of delivering them."""
+
+    def __init__(self):
+        self.sent = []
+
+    def send(self, to, subject, body):
+        self.sent.append({"to": to, "subject": subject, "body": body})
+
+
 @pytest.fixture
-def client(db_session, storage):
-    """API client whose requests use the test database and test storage."""
+def mailer():
+    """The mailer the API uses in tests; inspect `mailer.sent`."""
+    return RecordingMailer()
+
+
+@pytest.fixture
+def client(db_session, storage, mailer):
+    """API client whose requests use the test database, storage and mailer."""
     def override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_storage] = lambda: storage
+    app.dependency_overrides[get_mailer] = lambda: mailer
     try:
         with TestClient(app) as test_client:
             yield test_client
