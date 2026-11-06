@@ -23,16 +23,31 @@ class DocumentFileMissingError(Exception):
     """The document exists, but its file is missing from storage."""
 
 
-class UnsupportedDocumentTypeError(Exception):
+class InvalidDocumentError(Exception):
+    """An uploaded file was rejected; `filename` is the (cleaned) name of that file."""
+
+    def __init__(self, filename: str):
+        super().__init__(filename)
+        self.filename = filename
+
+
+class UnsupportedDocumentTypeError(InvalidDocumentError):
     """The file is not one of the accepted document types."""
 
 
-class DocumentTooLargeError(Exception):
+class DocumentTooLargeError(InvalidDocumentError):
     """The file is larger than MAX_DOCUMENT_SIZE."""
 
 
-class EmptyDocumentError(Exception):
+class EmptyDocumentError(InvalidDocumentError):
     """The file has no content."""
+
+
+class TooManyFilesError(Exception):
+    """More files were uploaded at once than MAX_FILES_PER_UPLOAD."""
+
+
+MAX_FILES_PER_UPLOAD = 10
 
 
 # TASK.md: projects hold docx and pdf documents. The content type is derived from the
@@ -76,6 +91,35 @@ def list_project_documents(session: Session, user: User, project_id: int) -> lis
     """
     project = project_service.get_project(session, user, project_id)
     return document_repository.list_for_project(session, project.id)
+
+
+def upload_documents(
+    session: Session, storage: Storage, user: User, project_id: int, files: list[tuple[str | None, bytes]]
+) -> list[Document]:
+    """Add `files` (filename, contents) to the project as new documents (owner or participant).
+
+    All files are validated before anything is stored: one invalid file rejects the whole upload.
+    """
+    project = project_service.get_project(session, user, project_id)
+    if len(files) > MAX_FILES_PER_UPLOAD:
+        raise TooManyFilesError(len(files))
+    checked = [(*validate_file(filename, data), data) for filename, data in files]
+
+    documents = []
+    try:
+        for name, content_type, data in checked:
+            key = _new_storage_key(project.id)
+            storage.save(key, data)
+            documents.append(
+                Document(project_id=project.id, storage_key=key, original_filename=name, content_type=content_type)
+            )
+        return document_repository.create_many(session, documents)
+    except Exception:
+        # Don't leave files behind for documents that were never created.
+        session.rollback()
+        for document in documents:
+            storage.delete(document.storage_key)
+        raise
 
 
 def download_document(session: Session, storage: Storage, user: User, document_id: int) -> tuple[Document, bytes]:

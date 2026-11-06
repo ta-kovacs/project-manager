@@ -14,6 +14,14 @@ def list_for_project(session: Session, project_id: int) -> list[Document]:
     return list(session.scalars(statement))
 
 
+def create_many(session: Session, documents: list[Document]) -> list[Document]:
+    session.add_all(documents)
+    session.commit()
+    for document in documents:
+        session.refresh(document)
+    return documents
+
+
 def update(session: Session, document: Document, storage_key: str, original_filename: str, content_type: str) -> Document:
     document.storage_key = storage_key
     document.original_filename = original_filename
