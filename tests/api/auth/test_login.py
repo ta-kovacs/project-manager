@@ -1,13 +1,10 @@
-"""POST /login: exchange a user's credentials (username, password) for a JWT access token."""
-import time
-from datetime import datetime, timedelta
+"""POST /login: exchange a user's credentials (username, password) for a JWT access token.
 
-import jwt
+What the token contains and when it expires is covered in tests/unit/test_security.py.
+"""
 import pytest
 
-from app import security
-from app.config import JWT_SECRET_KEY
-from app.security import JWT_ALGORITHM, create_access_token, read_access_token
+from app.security import read_access_token
 from tests.helpers import BearerAuth
 
 
@@ -22,51 +19,12 @@ def test_login_returns_access_token(login, registered_user):
     assert read_access_token(body["access_token"]) == registered_user["id"]
 
 
-def test_login_token_lasts_one_hour(login, registered_user):
-    before = int(time.time())
-    token = login().json()["access_token"]
-    after = int(time.time())
-
-    claims = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-    assert claims["sub"] == str(registered_user["id"])
-    assert before <= claims["iat"] <= after
-    assert claims["exp"] - claims["iat"] == 3600
-    # Nothing secret ends up in the (readable, unencrypted) token.
-    assert "password" not in str(claims)
-
-
 def test_login_token_authorizes_requests(client, login, registered_user):
     token = login().json()["access_token"]
 
     response = client.get("/projects", auth=BearerAuth(token))
 
     assert response.status_code == 200
-
-
-@pytest.mark.parametrize(("age", "status"), [(3590, 200), (3610, 401)], ids=["just-valid", "just-expired"])
-def test_token_expires_after_one_hour(client, registered_user, monkeypatch, age, status):
-    class IssuedEarlier(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return datetime.now(tz) - timedelta(seconds=age)
-
-    monkeypatch.setattr(security, "datetime", IssuedEarlier)
-    token = create_access_token(registered_user["id"])
-    monkeypatch.undo()
-
-    assert client.get("/projects", auth=BearerAuth(token)).status_code == status
-
-
-def test_expired_token_is_rejected(client, registered_user):
-    now = int(time.time())
-    claims = {"sub": str(registered_user["id"]), "type": "access", "iat": now - 3700, "exp": now - 100}
-    token = jwt.encode(claims, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
-
-    response = client.get("/projects", auth=BearerAuth(token))
-
-    assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid or expired access token"
-    assert response.headers["WWW-Authenticate"] == "Bearer"
 
 
 @pytest.mark.usefixtures("registered_user")
