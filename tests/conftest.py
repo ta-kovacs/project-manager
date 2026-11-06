@@ -18,6 +18,7 @@ from app.models.document import Document
 from app.models.project_user import ProjectRole, ProjectUser
 from app.models.user import User
 from app.routes import documents as document_routes
+from app.security import create_share_token
 from app.services import document_service
 from app.storage import LocalStorage, S3Storage, get_storage
 
@@ -462,3 +463,22 @@ def emailed_link(mailer):
         return re.search(r"https?://\S+/join\?token=\S+", mailer.sent[-1]["body"]).group(0)
 
     return _emailed_link
+
+
+@pytest.fixture
+def share_token(project):
+    """A valid share token for `project`."""
+    return create_share_token(project["id"], "bob@example.com")
+
+
+@pytest.fixture
+def join_project(client, other_auth):
+    """GET /join?token=<token> as the second user (who isn't a member of `project` yet);
+    `token=None` leaves the parameter out, `auth` sends other credentials (None for none)."""
+    default_auth = other_auth
+
+    def _join_project(token, *, auth=default_auth):
+        params = {} if token is None else {"token": token}
+        return client.get("/join", params=params, auth=auth)
+
+    return _join_project
