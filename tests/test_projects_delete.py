@@ -45,7 +45,7 @@ def test_delete_project_keeps_other_projects_files(
         original_filename="plan.pdf",
         content_type="application/pdf",
     )
-    storage.save(other_document.storage_key, b"bob's file")
+    storage.save(other_document.storage_key, b"bob's file", "application/pdf")
     db_session.add(other_document)
     db_session.commit()
 

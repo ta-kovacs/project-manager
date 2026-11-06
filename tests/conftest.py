@@ -1,7 +1,9 @@
 import os
 
+import boto3
 import pytest
 from fastapi.testclient import TestClient
+from moto import mock_aws
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -15,7 +17,7 @@ from app.models.project_user import ProjectRole, ProjectUser
 from app.models.user import User
 from app.routes import documents as document_routes
 from app.services import document_service
-from app.storage import LocalStorage, get_storage
+from app.storage import LocalStorage, S3Storage, get_storage
 
 # CI points this at a throwaway Postgres; locally the tests fall back to in-memory SQLite.
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite://")
@@ -32,6 +34,12 @@ else:
 
 TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
+# Which storage backend the API tests use: "local" (default) or "s3" (a moto-mocked bucket).
+# CI runs the suite with both.
+TEST_STORAGE_BACKEND = os.getenv("TEST_STORAGE_BACKEND", "local")
+TEST_BUCKET = "test-project-documents"
+TEST_REGION = "eu-north-1"
+
 
 # --- database and client -----------------------------------------------------
 
@@ -47,9 +55,42 @@ def db_session():
 
 
 @pytest.fixture
-def storage(tmp_path):
-    """Document file storage in a per-test temporary directory."""
+def s3_bucket():
+    """Name of the mocked S3 bucket that `s3_client` creates."""
+    return TEST_BUCKET
+
+
+@pytest.fixture
+def s3_client(monkeypatch):
+    """A boto3 S3 client against moto's in-memory S3, with an empty TEST_BUCKET.
+
+    Fake credentials are set so that no request can ever reach a real AWS account.
+    """
+    for name in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"):
+        monkeypatch.setenv(name, "testing")
+    monkeypatch.setenv("AWS_DEFAULT_REGION", TEST_REGION)
+    with mock_aws():
+        client = boto3.client("s3", region_name=TEST_REGION)
+        client.create_bucket(Bucket=TEST_BUCKET, CreateBucketConfiguration={"LocationConstraint": TEST_REGION})
+        yield client
+
+
+def _make_storage(backend, request, tmp_path):
+    if backend == "s3":
+        return S3Storage(TEST_BUCKET, client=request.getfixturevalue("s3_client"))
     return LocalStorage(tmp_path / "storage")
+
+
+@pytest.fixture
+def storage(request, tmp_path):
+    """Document file storage for the test: TEST_STORAGE_BACKEND decides local disk or mocked S3."""
+    return _make_storage(TEST_STORAGE_BACKEND, request, tmp_path)
+
+
+@pytest.fixture(params=["local", "s3"])
+def any_storage(request, tmp_path):
+    """Each storage backend in turn; tests using it run once per backend."""
+    return _make_storage(request.param, request, tmp_path)
 
 
 @pytest.fixture
@@ -242,7 +283,7 @@ def make_document(db_session, storage):
             original_filename=filename,
             content_type="application/pdf",
         )
-        storage.save(document.storage_key, content)
+        storage.save(document.storage_key, content, "application/pdf")
         db_session.add(document)
         db_session.commit()
         return document
@@ -353,8 +394,13 @@ def upload_documents(client, auth, upload_files):
 
 @pytest.fixture
 def stored_files(storage):
-    """Returns the paths of all files currently in `storage`."""
+    """Returns the keys of all files currently in `storage` (either backend)."""
     def _stored_files():
-        return [path for path in storage.root.rglob("*") if path.is_file()] if storage.root.exists() else []
+        if isinstance(storage, S3Storage):
+            response = storage.client.list_objects_v2(Bucket=storage.bucket)
+            return [item["Key"] for item in response.get("Contents", [])]
+        if not storage.root.exists():
+            return []
+        return [path.relative_to(storage.root).as_posix() for path in storage.root.rglob("*") if path.is_file()]
 
     return _stored_files
