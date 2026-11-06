@@ -98,3 +98,41 @@ def registered_user(register):
     response = register()
     assert response.status_code == 201, response.text
     return response.json()
+
+
+# --- projects ----------------------------------------------------------------
+
+@pytest.fixture
+def auth(registered_user, credentials):
+    """HTTP Basic credentials of the registered default user, for protected endpoints."""
+    return (credentials["username"], credentials["password"])
+
+
+@pytest.fixture(
+    params=[
+        pytest.param(None, id="no-credentials"),
+        pytest.param(("alice", "wrong-password"), id="wrong-password"),
+        pytest.param(("nobody", "s3cret-pass"), id="unknown-username"),
+    ]
+)
+def bad_auth(request, registered_user):
+    """Each way a protected request can fail to authenticate; tests using it run once per case."""
+    return request.param
+
+
+@pytest.fixture
+def project_data():
+    """Valid data for a new project."""
+    return {"name": "Apollo", "description": "Land on the moon"}
+
+
+@pytest.fixture
+def create_project(client, auth, project_data):
+    """POST /projects as the default user; pass fields to override them, `exclude` to leave some out,
+    `auth` to send other credentials (None for none)."""
+    default_auth = auth
+
+    def _create_project(*, auth=default_auth, exclude=(), **overrides):
+        return client.post("/projects", json=_payload(project_data, overrides, exclude), auth=auth)
+
+    return _create_project
