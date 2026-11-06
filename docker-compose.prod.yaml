@@ -27,6 +27,11 @@ services:
       STORAGE_BACKEND: s3
       S3_BUCKET: ${S3_BUCKET:?S3_BUCKET is not set}
       AWS_REGION: ${AWS_REGION:?AWS_REGION is not set}
+      # Share emails go out through SES from MAIL_SENDER; links are signed with SHARE_SECRET_KEY.
+      MAIL_BACKEND: ses
+      MAIL_SENDER: ${MAIL_SENDER:?MAIL_SENDER is not set}
+      SHARE_SECRET_KEY: ${SHARE_SECRET_KEY:?SHARE_SECRET_KEY is not set}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
     ports:
       - "80:8000"
     depends_on:

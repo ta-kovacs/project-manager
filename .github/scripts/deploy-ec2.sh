@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
 # Deploy an image to the EC2 host through SSM Run Command (no SSH) and wait for the result.
 #
-# On the host it: writes docker-compose.prod.yaml and .env (DB password from SSM Parameter Store),
-# pulls the image from ECR, starts Postgres, runs `alembic upgrade head`, starts the app and
-# checks /health.
+# On the host it: writes docker-compose.prod.yaml and .env (DB password and share-link secret from
+# SSM Parameter Store), pulls the image from ECR, starts Postgres, runs `alembic upgrade head`,
+# starts the app and checks /health.
 #
 # Usage: deploy-ec2.sh <instance-id> <image-uri>
-# Env:   AWS_REGION and S3_BUCKET (required), SSM_PARAMETER_PREFIX (default /project-manager)
+# Env:   AWS_REGION, S3_BUCKET and MAIL_SENDER (required), PUBLIC_BASE_URL (optional),
+#        SSM_PARAMETER_PREFIX (default /project-manager)
 set -euo pipefail
 
 instance_id=$1
 image=$2
 region=${AWS_REGION:?AWS_REGION must be set}
 s3_bucket=${S3_BUCKET:?S3_BUCKET must be set (the bucket holding document files)}
+mail_sender=${MAIL_SENDER:?MAIL_SENDER must be set (the verified SES address share emails come from)}
+public_base_url=${PUBLIC_BASE_URL:-}
 registry=${image%%/*}
 param_prefix=${SSM_PARAMETER_PREFIX:-/project-manager}
 compose_b64=$(base64 -w0 docker-compose.prod.yaml)
@@ -23,8 +26,9 @@ mkdir -p /opt/project-manager
 cd /opt/project-manager
 echo '$compose_b64' | base64 -d > docker-compose.prod.yaml
 db_password=\$(aws ssm get-parameter --region $region --name $param_prefix/postgres-password --with-decryption --query Parameter.Value --output text)
+share_secret=\$(aws ssm get-parameter --region $region --name $param_prefix/share-secret-key --with-decryption --query Parameter.Value --output text)
 umask 077
-printf 'APP_IMAGE=%s\nPOSTGRES_PASSWORD=%s\nS3_BUCKET=%s\nAWS_REGION=%s\n' '$image' "\$db_password" '$s3_bucket' '$region' > .env
+printf 'APP_IMAGE=%s\nPOSTGRES_PASSWORD=%s\nS3_BUCKET=%s\nAWS_REGION=%s\nSHARE_SECRET_KEY=%s\nMAIL_SENDER=%s\nPUBLIC_BASE_URL=%s\n' '$image' "\$db_password" '$s3_bucket' '$region' "\$share_secret" '$mail_sender' '$public_base_url' > .env
 aws ecr get-login-password --region $region | docker login --username AWS --password-stdin $registry
 docker compose -f docker-compose.prod.yaml pull app
 docker compose -f docker-compose.prod.yaml up -d --wait db
