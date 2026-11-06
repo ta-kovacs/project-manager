@@ -13,6 +13,7 @@ from app.models.base import Base
 from app.models.document import Document
 from app.models.project_user import ProjectRole, ProjectUser
 from app.models.user import User
+from app.storage import LocalStorage, get_storage
 
 # CI points this at a throwaway Postgres; locally the tests fall back to in-memory SQLite.
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite://")
@@ -44,12 +45,19 @@ def db_session():
 
 
 @pytest.fixture
-def client(db_session):
-    """API client whose requests use the test database."""
+def storage(tmp_path):
+    """Document file storage in a per-test temporary directory."""
+    return LocalStorage(tmp_path / "storage")
+
+
+@pytest.fixture
+def client(db_session, storage):
+    """API client whose requests use the test database and test storage."""
     def override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_storage] = lambda: storage
     try:
         with TestClient(app) as test_client:
             yield test_client
