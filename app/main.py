@@ -1,13 +1,12 @@
 from fastapi import FastAPI
-from app.routes import auth
-
-## TODO: Token verification dependency, maybe seperate router registration
+from app.routes import auth, projects
 
 app = FastAPI(
     title="Project Manager API"
 )
 
 app.include_router(auth.router)
+app.include_router(projects.router)
 
 
 @app.get("/health")
