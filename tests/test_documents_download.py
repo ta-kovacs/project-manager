@@ -53,4 +53,4 @@ def test_download_document_requires_authentication(download_document, document, 
     response = download_document(document.id, auth=bad_auth)
 
     assert response.status_code == 401
-    assert response.headers["WWW-Authenticate"] == "Basic"
+    assert response.headers["WWW-Authenticate"] == "Bearer"

@@ -1,7 +1,9 @@
 import os
 import re
+import time
 
 import boto3
+import jwt
 import pytest
 from fastapi.testclient import TestClient
 from moto import mock_aws
@@ -18,7 +20,8 @@ from app.models.document import Document
 from app.models.project_user import ProjectRole, ProjectUser
 from app.models.user import User
 from app.routes import documents as document_routes
-from app.security import create_share_token
+from app.config import JWT_SECRET_KEY
+from app.security import JWT_ALGORITHM, create_share_token
 from app.services import document_service
 from app.storage import LocalStorage, S3Storage, get_storage
 
@@ -176,29 +179,81 @@ def registered_user(register):
 
 # --- projects ----------------------------------------------------------------
 
-@pytest.fixture
-def auth(registered_user, credentials):
-    """HTTP Basic credentials of the registered default user, for protected endpoints."""
-    return (credentials["username"], credentials["password"])
+class BearerAuth:
+    """Sends `Authorization: Bearer <token>`; pass as `auth=` to the test client.
+
+    `username` is the user the token was issued to, when there is one.
+    """
+
+    def __init__(self, token, username=None):
+        self.token = token
+        self.username = username
+
+    def __call__(self, request):
+        request.headers["Authorization"] = f"Bearer {self.token}"
+        return request
 
 
 @pytest.fixture
-def other_auth(register):
-    """HTTP Basic credentials of a second registered user."""
+def bearer_auth(login):
+    """Logs in through POST /login and returns a BearerAuth with the issued access token."""
+    def _bearer_auth(username, password):
+        response = login(username=username, password=password)
+        assert response.status_code == 200, response.text
+        return BearerAuth(response.json()["access_token"], username)
+
+    return _bearer_auth
+
+
+@pytest.fixture
+def auth(registered_user, credentials, bearer_auth):
+    """Access token of the registered default user, for protected endpoints."""
+    return bearer_auth(credentials["username"], credentials["password"])
+
+
+@pytest.fixture
+def other_auth(register, bearer_auth):
+    """Access token of a second registered user."""
     response = register(username="bob", password="bobs-password")
     assert response.status_code == 201, response.text
-    return ("bob", "bobs-password")
+    return bearer_auth("bob", "bobs-password")
 
 
-@pytest.fixture(
-    params=[
+def _signed_token(**claims):
+    """A JWT signed with the app's key, with exactly the given claims."""
+    return jwt.encode(claims, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+
+def _bad_tokens():
+    now = int(time.time())
+    valid = {"sub": "1", "type": "access", "iat": now, "exp": now + 3600}
+    return [
         pytest.param(None, id="no-credentials"),
-        pytest.param(("alice", "wrong-password"), id="wrong-password"),
-        pytest.param(("nobody", "s3cret-pass"), id="unknown-username"),
+        pytest.param(("alice", "s3cret-pass"), id="basic-credentials"),
+        pytest.param(BearerAuth("not-a-jwt"), id="malformed-token"),
+        pytest.param(
+            BearerAuth(jwt.encode(valid, "some-other-key-that-is-at-least-32-bytes", algorithm=JWT_ALGORITHM)),
+            id="wrong-signature",
+        ),
+        pytest.param(
+            BearerAuth(_signed_token(**{**valid, "iat": now - 7200, "exp": now - 3600})), id="expired-token"
+        ),
+        pytest.param(BearerAuth(_signed_token(**{**valid, "sub": "999999"})), id="unknown-user"),
+        pytest.param(BearerAuth(_signed_token(**{**valid, "type": "share"})), id="wrong-token-type"),
+        pytest.param(
+            BearerAuth(jwt.encode({k: v for k, v in valid.items() if k != "exp"}, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)),
+            id="no-expiry",
+        ),
+        pytest.param(BearerAuth(jwt.encode(valid, None, algorithm="none")), id="unsigned-token"),
     ]
-)
+
+
+@pytest.fixture(params=_bad_tokens())
 def bad_auth(request, registered_user):
-    """Each way a protected request can fail to authenticate; tests using it run once per case."""
+    """Each way a protected request can fail to authenticate; tests using it run once per case.
+
+    `registered_user` exists (id 1), so a valid token for them would be accepted.
+    """
     return request.param
 
 
@@ -245,7 +300,7 @@ def participant_auth(project, other_auth, db_session):
 
     The membership is inserted directly, so tests of other endpoints don't depend on the invite endpoint.
     """
-    other_user = db_session.query(User).filter_by(username=other_auth[0]).one()
+    other_user = db_session.query(User).filter_by(username=other_auth.username).one()
     db_session.add(ProjectUser(project_id=project["id"], user_id=other_user.id, role=ProjectRole.PARTICIPANT))
     db_session.commit()
     return other_auth

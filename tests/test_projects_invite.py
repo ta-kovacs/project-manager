@@ -7,15 +7,15 @@ from app.models.project_user import ProjectUser
 @pytest.fixture
 def invitee(other_auth):
     """Username of a registered user who isn't a member of `project` yet."""
-    return other_auth[0]
+    return other_auth.username
 
 
 @pytest.fixture
-def third_auth(register):
-    """Credentials of a third registered user."""
+def third_auth(register, bearer_auth):
+    """Access token of a third registered user."""
     response = register(username="carol", password="carols-password")
     assert response.status_code == 201, response.text
-    return ("carol", "carols-password")
+    return bearer_auth("carol", "carols-password")
 
 
 def test_invite_user_returns_membership(invite_user, project, invitee):
@@ -43,7 +43,7 @@ def test_invited_user_gets_participant_access(
 
 
 def test_invite_user_by_participant_is_forbidden(invite_user, project, participant_auth, third_auth, db_session):
-    response = invite_user(project["id"], third_auth[0], auth=participant_auth)
+    response = invite_user(project["id"], third_auth.username, auth=participant_auth)
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Only the project owner can invite users"
@@ -51,7 +51,7 @@ def test_invite_user_by_participant_is_forbidden(invite_user, project, participa
 
 
 def test_invite_user_by_non_member_is_not_found(invite_user, project, other_auth, third_auth):
-    response = invite_user(project["id"], third_auth[0], auth=other_auth)
+    response = invite_user(project["id"], third_auth.username, auth=other_auth)
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Project not found"
@@ -81,7 +81,7 @@ def test_invite_unknown_user_is_not_found(invite_user, project):
 def test_invite_existing_member_conflicts(
     invite_user, project, credentials, participant_auth, db_session, existing_member
 ):
-    username = participant_auth[0] if existing_member == "participant" else credentials["username"]
+    username = participant_auth.username if existing_member == "participant" else credentials["username"]
 
     response = invite_user(project["id"], username)
 
@@ -102,5 +102,5 @@ def test_invite_user_requires_authentication(invite_user, project, invitee, bad_
     response = invite_user(project["id"], invitee, auth=bad_auth)
 
     assert response.status_code == 401
-    assert response.headers["WWW-Authenticate"] == "Basic"
+    assert response.headers["WWW-Authenticate"] == "Bearer"
     assert db_session.query(ProjectUser).count() == 1  # only the owner

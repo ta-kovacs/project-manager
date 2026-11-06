@@ -66,5 +66,5 @@ def test_create_project_requires_authentication(create_project, bad_auth, db_ses
     response = create_project(auth=bad_auth)
 
     assert response.status_code == 401
-    assert response.headers["WWW-Authenticate"] == "Basic"
+    assert response.headers["WWW-Authenticate"] == "Bearer"
     assert db_session.query(Project).count() == 0

@@ -28,6 +28,13 @@ MAIL_BACKEND = os.getenv("MAIL_BACKEND", "console")
 # ses backend: the verified SES identity emails are sent from.
 MAIL_SENDER = os.getenv("MAIL_SENDER")
 
+# Signs the JWT access tokens issued by POST /login. The default is for local development only;
+# production reads a real secret from SSM Parameter Store.
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-only-insecure-jwt-secret-change-me-in-production")
+
+# How long an access token stays valid, in seconds (default 1 hour).
+ACCESS_TOKEN_MAX_AGE = int(os.getenv("ACCESS_TOKEN_MAX_AGE", 60 * 60))
+
 # Signs the tokens in share links (GET /project/{id}/share -> GET /join). The default is for local
 # development only; production reads a real secret from SSM Parameter Store.
 SHARE_SECRET_KEY = os.getenv("SHARE_SECRET_KEY", "dev-only-insecure-share-secret")

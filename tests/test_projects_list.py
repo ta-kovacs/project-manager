@@ -69,4 +69,4 @@ def test_list_projects_requires_authentication(list_projects, bad_auth):
     response = list_projects(auth=bad_auth)
 
     assert response.status_code == 401
-    assert response.headers["WWW-Authenticate"] == "Basic"
+    assert response.headers["WWW-Authenticate"] == "Bearer"

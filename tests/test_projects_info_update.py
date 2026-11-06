@@ -69,5 +69,5 @@ def test_update_project_info_requires_authentication(update_project_info, projec
     response = update_project_info(project["id"], auth=bad_auth)
 
     assert response.status_code == 401
-    assert response.headers["WWW-Authenticate"] == "Basic"
+    assert response.headers["WWW-Authenticate"] == "Bearer"
     assert db_session.get(Project, project["id"]).name == project["name"]

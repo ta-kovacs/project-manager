@@ -25,7 +25,7 @@ def test_join_project_returns_membership(join_project, share_token, project, oth
     body = response.json()
     assert body == {
         "project_id": project["id"],
-        "user": {"id": body["user"]["id"], "username": other_auth[0]},
+        "user": {"id": body["user"]["id"], "username": other_auth.username},
         "role": "participant",
     }
 
@@ -118,7 +118,6 @@ def test_join_project_without_token_is_rejected(join_project):
 def test_join_project_requires_authentication(join_project, share_token, bad_auth, db_session):
     response = join_project(share_token, auth=bad_auth)
 
-    # The Basic challenge is what makes a browser show its login prompt.
     assert response.status_code == 401
-    assert response.headers["WWW-Authenticate"] == "Basic"
+    assert response.headers["WWW-Authenticate"] == "Bearer"
     assert db_session.query(ProjectUser).count() == 1
