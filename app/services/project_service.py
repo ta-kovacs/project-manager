@@ -10,7 +10,7 @@ from app.mailer import Mailer
 from app.models.user import User
 from app.repositories import project_repository, user_repository
 from app.schemas.project_schema import ProjectCreate, ProjectUpdate
-from app.security import create_share_token
+from app.security import create_share_token, read_share_token
 from app.storage import Storage
 
 
@@ -120,3 +120,26 @@ def share_project(
             f"The link is valid for {days} days. If you weren't expecting this, you can ignore this email."
         ),
     )
+
+
+def join_project(session: Session, user: User, token: str) -> ProjectUser:
+    """Give `user` participant access to the project named in a share token.
+
+    Raises security.InvalidShareTokenError / ExpiredShareTokenError for bad tokens and
+    ProjectNotFoundError if the project no longer exists. Joining again (or as the owner)
+    returns the existing membership unchanged.
+    """
+    project_id, _email = read_share_token(token)
+    project = project_repository.get_project(session, project_id)
+    if project is None:
+        raise ProjectNotFoundError(project_id)
+
+    existing = project_repository.get_membership(session, project.id, user.id)
+    if existing is not None:
+        return existing
+    try:
+        return project_repository.add_member(session, project, user, ProjectRole.PARTICIPANT)
+    except IntegrityError:
+        # Joined through a concurrent request (e.g. the link was opened twice at once).
+        session.rollback()
+        return project_repository.get_membership(session, project.id, user.id)

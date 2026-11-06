@@ -34,6 +34,10 @@ def list_for_user(session: Session, user_id: int) -> list[Project]:
     return list(session.scalars(statement))
 
 
+def get_project(session: Session, project_id: int) -> Project | None:
+    return session.get(Project, project_id)
+
+
 def get_membership(session: Session, project_id: int, user_id: int) -> ProjectUser | None:
     """The user's membership in the project (with `.project` and `.role`), or None if they aren't a member."""
     return session.get(ProjectUser, (project_id, user_id))
