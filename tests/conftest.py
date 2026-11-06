@@ -188,3 +188,25 @@ def get_project_info(client, auth):
         return client.get(f"/project/{project_id}/info", auth=auth)
 
     return _get_project_info
+
+
+@pytest.fixture
+def updated_data():
+    """Valid replacement details for a project."""
+    return {"name": "Artemis", "description": "Back to the moon"}
+
+
+@pytest.fixture
+def update_project_info(client, auth, updated_data):
+    """PUT /project/{id}/info as the default user; pass fields to override them, `exclude` to leave
+    some out, `auth` to send other credentials (None for none)."""
+    default_auth = auth
+
+    def _update_project_info(project_id, *, auth=default_auth, exclude=(), **overrides):
+        return client.put(
+            f"/project/{project_id}/info",
+            json=_payload(updated_data, overrides, exclude),
+            auth=auth,
+        )
+
+    return _update_project_info
