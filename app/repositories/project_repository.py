@@ -34,6 +34,10 @@ def list_for_user(session: Session, user_id: int) -> list[Project]:
     return list(session.scalars(statement))
 
 
+def get_project(session: Session, project_id: int) -> Project | None:
+    return session.get(Project, project_id)
+
+
 def get_membership(session: Session, project_id: int, user_id: int) -> ProjectUser | None:
     """The user's membership in the project (with `.project` and `.role`), or None if they aren't a member."""
     return session.get(ProjectUser, (project_id, user_id))
@@ -51,3 +55,11 @@ def delete_project(session: Session, project: Project) -> None:
     """Delete the project; its memberships and documents go with it (ORM cascade)."""
     session.delete(project)
     session.commit()
+
+
+def add_member(session: Session, project: Project, user: User, role: ProjectRole) -> ProjectUser:
+    membership = ProjectUser(project=project, user=user, role=role)
+    session.add(membership)
+    session.commit()
+    session.refresh(membership)
+    return membership

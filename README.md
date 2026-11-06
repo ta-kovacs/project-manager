@@ -45,6 +45,11 @@ docker compose up --build
 | `S3_BUCKET` | – | the S3 bucket for document files (required when `STORAGE_BACKEND=s3`) |
 | `STORAGE_DIR` | `storage` | directory for document files with the `local` backend |
 | `MAX_DOCUMENT_SIZE` | `10485760` (10 MB) | largest accepted document upload, in bytes |
+| `MAIL_BACKEND` | `console` | how share emails are sent: `ses` (deployed environments) or `console` (logged) |
+| `MAIL_SENDER` | – | verified SES address share emails come from (required when `MAIL_BACKEND=ses`) |
+| `SHARE_SECRET_KEY` | an insecure development value | signs share-link tokens (production: SSM parameter `/project-manager/share-secret-key`) |
+| `SHARE_LINK_MAX_AGE` | `604800` (7 days) | how long a share link stays valid, in seconds |
+| `PUBLIC_BASE_URL` | the address of the request | base of the links in share emails, e.g. `https://pm.example.com` |
 
 Inside Docker Compose the app connects to `db:5432` instead.
 
@@ -68,6 +73,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request and on pu
   `alembic upgrade head` runs before the app is (re)started
 
 The deploy job is skipped until the `EC2_INSTANCE_ID` repository variable is set, and needs the `S3_BUCKET`
-variable (the documents bucket). It signs in to AWS with OIDC
+(documents bucket) and `MAIL_SENDER` (verified SES sender) variables, plus the SSM parameter
+`/project-manager/share-secret-key`. `PUBLIC_BASE_URL` is optional. It signs in to AWS with OIDC
 when the `AWS_ROLE_ARN` variable is set, or otherwise with the `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` secrets
 of a deploy-only IAM user.

@@ -1,10 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import EmailStr
 from sqlalchemy.orm import Session
 
+from app.config import PUBLIC_BASE_URL, SHARE_LINK_MAX_AGE
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.security import ExpiredShareTokenError, InvalidShareTokenError
+from app.mailer import Mailer, MailDeliveryError, get_mailer
 from app.models.user import User
-from app.schemas.project_schema import ProjectCreate, ProjectRead, ProjectUpdate
+from app.schemas.project_schema import MemberRead, ProjectCreate, ProjectRead, ProjectUpdate, ShareRead
 from app.services import project_service
 from app.storage import Storage, get_storage
 
@@ -93,3 +97,95 @@ def delete_project(
         raise _project_not_found()
     except project_service.NotProjectOwnerError:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Only the project owner can delete it")
+
+
+@router.post(
+    "/project/{project_id}/invite",
+    response_model=MemberRead,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        403: {"description": "Only the project's owner can invite users"},
+        404: {"description": "Project or user doesn't exist, or the caller has no access to the project"},
+        409: {"description": "The user already has access to the project"},
+    },
+)
+def invite_user(
+    project_id: int,
+    username: str = Query(alias="user", min_length=1, description="Login of the user to invite"),
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+):
+    """Grant a user participant access to a project (owner only)."""
+    try:
+        return project_service.invite_user(session, user, project_id, username)
+    except project_service.ProjectNotFoundError:
+        raise _project_not_found()
+    except project_service.NotProjectOwnerError:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Only the project owner can invite users")
+    except project_service.UserNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="User not found")
+    except project_service.AlreadyMemberError:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="User already has access to the project")
+
+
+@router.get(
+    "/project/{project_id}/share",
+    response_model=ShareRead,
+    responses={
+        403: {"description": "Only the project's owner can share it"},
+        404: {"description": "Project doesn't exist or the caller has no access"},
+        502: {"description": "The email could not be sent"},
+    },
+)
+def share_project(
+    project_id: int,
+    request: Request,
+    email: EmailStr = Query(alias="with", description="Email address to send the join link to"),
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+    mailer: Mailer = Depends(get_mailer),
+):
+    """Email a GET /join link that gives whoever opens it participant access (owner only)."""
+    base_url = (PUBLIC_BASE_URL or str(request.base_url)).rstrip("/")
+
+    def join_url(token: str) -> str:
+        return f"{base_url}/join?token={token}"
+
+    try:
+        project_service.share_project(session, mailer, user, project_id, email, join_url)
+    except project_service.ProjectNotFoundError:
+        raise _project_not_found()
+    except project_service.NotProjectOwnerError:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Only the project owner can share it")
+    except MailDeliveryError:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="The email could not be sent")
+    return ShareRead(project_id=project_id, email=email, expires_in=SHARE_LINK_MAX_AGE)
+
+
+@router.get(
+    "/join",
+    response_model=MemberRead,
+    responses={
+        400: {"description": "The share link is invalid"},
+        404: {"description": "The shared project no longer exists"},
+        410: {"description": "The share link has expired"},
+    },
+)
+def join_project(
+    token: str = Query(description="Token from a share link (GET /project/{id}/share)"),
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+):
+    """Join a project through a share link: the signed-in caller becomes a participant.
+
+    Opened in a browser, the 401 response makes the browser ask for the username and password.
+    Joining a project the caller already has access to returns their existing membership.
+    """
+    try:
+        return project_service.join_project(session, user, token)
+    except InvalidShareTokenError:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid share link")
+    except ExpiredShareTokenError:
+        raise HTTPException(status.HTTP_410_GONE, detail="This share link has expired")
+    except project_service.ProjectNotFoundError:
+        raise _project_not_found()

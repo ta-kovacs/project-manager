@@ -1,4 +1,5 @@
 import os
+import re
 
 import boto3
 import pytest
@@ -10,12 +11,14 @@ from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401  (registers every model on Base.metadata)
 from app.database import get_db
+from app.mailer import get_mailer
 from app.main import app
 from app.models.base import Base
 from app.models.document import Document
 from app.models.project_user import ProjectRole, ProjectUser
 from app.models.user import User
 from app.routes import documents as document_routes
+from app.security import create_share_token
 from app.services import document_service
 from app.storage import LocalStorage, S3Storage, get_storage
 
@@ -93,14 +96,31 @@ def any_storage(request, tmp_path):
     return _make_storage(request.param, request, tmp_path)
 
 
+class RecordingMailer:
+    """Keeps sent emails in `sent` instead of delivering them."""
+
+    def __init__(self):
+        self.sent = []
+
+    def send(self, to, subject, body):
+        self.sent.append({"to": to, "subject": subject, "body": body})
+
+
 @pytest.fixture
-def client(db_session, storage):
-    """API client whose requests use the test database and test storage."""
+def mailer():
+    """The mailer the API uses in tests; inspect `mailer.sent`."""
+    return RecordingMailer()
+
+
+@pytest.fixture
+def client(db_session, storage, mailer):
+    """API client whose requests use the test database, storage and mailer."""
     def override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_storage] = lambda: storage
+    app.dependency_overrides[get_mailer] = lambda: mailer
     try:
         with TestClient(app) as test_client:
             yield test_client
@@ -223,7 +243,7 @@ def project(create_project):
 def participant_auth(project, other_auth, db_session):
     """Credentials of the second user, added to `project` as a participant.
 
-    There is no invite endpoint yet, so the membership is inserted directly.
+    The membership is inserted directly, so tests of other endpoints don't depend on the invite endpoint.
     """
     other_user = db_session.query(User).filter_by(username=other_auth[0]).one()
     db_session.add(ProjectUser(project_id=project["id"], user_id=other_user.id, role=ProjectRole.PARTICIPANT))
@@ -404,3 +424,61 @@ def stored_files(storage):
         return [path.relative_to(storage.root).as_posix() for path in storage.root.rglob("*") if path.is_file()]
 
     return _stored_files
+
+
+
+# --- sharing -----------------------------------------------------------------
+
+@pytest.fixture
+def invite_user(client, auth):
+    """POST /project/{id}/invite?user=<username> as the default user; `username=None` leaves the
+    parameter out, `auth` sends other credentials (None for none)."""
+    default_auth = auth
+
+    def _invite_user(project_id, username, *, auth=default_auth):
+        params = {} if username is None else {"user": username}
+        return client.post(f"/project/{project_id}/invite", params=params, auth=auth)
+
+    return _invite_user
+
+
+@pytest.fixture
+def share_project(client, auth):
+    """GET /project/{id}/share?with=<email> as the default user; `email=None` leaves the parameter
+    out, `auth` sends other credentials (None for none)."""
+    default_auth = auth
+
+    def _share_project(project_id, email, *, auth=default_auth):
+        params = {} if email is None else {"with": email}
+        return client.get(f"/project/{project_id}/share", params=params, auth=auth)
+
+    return _share_project
+
+
+@pytest.fixture
+def emailed_link(mailer):
+    """Returns the join link from the most recent email the mailer recorded."""
+    def _emailed_link():
+        assert mailer.sent, "no email was sent"
+        return re.search(r"https?://\S+/join\?token=\S+", mailer.sent[-1]["body"]).group(0)
+
+    return _emailed_link
+
+
+@pytest.fixture
+def share_token(project):
+    """A valid share token for `project`."""
+    return create_share_token(project["id"], "bob@example.com")
+
+
+@pytest.fixture
+def join_project(client, other_auth):
+    """GET /join?token=<token> as the second user (who isn't a member of `project` yet);
+    `token=None` leaves the parameter out, `auth` sends other credentials (None for none)."""
+    default_auth = other_auth
+
+    def _join_project(token, *, auth=default_auth):
+        params = {} if token is None else {"token": token}
+        return client.get("/join", params=params, auth=auth)
+
+    return _join_project
