@@ -21,6 +21,10 @@ services:
     container_name: project-manager-api
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/mydb
+      STORAGE_DIR: /data/documents
+    volumes:
+      # document files outlive container rebuilds
+      - documents:/data/documents
     ports:
       - "8000:8000"
     depends_on:
@@ -29,3 +33,4 @@ services:
 
 volumes:
   postgres_data:
+  documents:
