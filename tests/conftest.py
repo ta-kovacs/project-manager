@@ -1,4 +1,5 @@
 import os
+import re
 
 import boto3
 import pytest
@@ -438,3 +439,26 @@ def invite_user(client, auth):
         return client.post(f"/project/{project_id}/invite", params=params, auth=auth)
 
     return _invite_user
+
+
+@pytest.fixture
+def share_project(client, auth):
+    """GET /project/{id}/share?with=<email> as the default user; `email=None` leaves the parameter
+    out, `auth` sends other credentials (None for none)."""
+    default_auth = auth
+
+    def _share_project(project_id, email, *, auth=default_auth):
+        params = {} if email is None else {"with": email}
+        return client.get(f"/project/{project_id}/share", params=params, auth=auth)
+
+    return _share_project
+
+
+@pytest.fixture
+def emailed_link(mailer):
+    """Returns the join link from the most recent email the mailer recorded."""
+    def _emailed_link():
+        assert mailer.sent, "no email was sent"
+        return re.search(r"https?://\S+/join\?token=\S+", mailer.sent[-1]["body"]).group(0)
+
+    return _emailed_link
