@@ -23,10 +23,10 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD}@db:5432/mydb
-      STORAGE_DIR: /data/documents
-    volumes:
-      # document files outlive container rebuilds
-      - documents:/data/documents
+      # Document files live in S3; credentials come from the EC2 instance role.
+      STORAGE_BACKEND: s3
+      S3_BUCKET: ${S3_BUCKET:?S3_BUCKET is not set}
+      AWS_REGION: ${AWS_REGION:?AWS_REGION is not set}
     ports:
       - "80:8000"
     depends_on:
@@ -35,4 +35,3 @@ services:
 
 volumes:
   postgres_data:
-  documents:

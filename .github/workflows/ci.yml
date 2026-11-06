@@ -133,6 +133,8 @@ jobs:
           echo "uri=$image" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to EC2 (migrations + app) via SSM
+        env:
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
         run: bash .github/scripts/deploy-ec2.sh "${{ vars.EC2_INSTANCE_ID }}" "${{ steps.image.outputs.uri }}"
 
       - name: Summary
