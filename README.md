@@ -28,6 +28,19 @@ uvicorn app.main:app --reload
 
 The API is then available at http://localhost:8000, with interactive docs at http://localhost:8000/docs.
 
+## Authentication
+
+`POST /login` exchanges a username and password for a JWT access token, valid for one hour:
+
+```json
+{"access_token": "<jwt>", "token_type": "bearer", "expires_in": 3600}
+```
+
+Every other endpoint except `POST /auth` and `GET /health` requires it as `Authorization: Bearer <jwt>`
+(in the interactive docs: **Authorize**). A missing, malformed, tampered or expired token gets `401` with
+`WWW-Authenticate: Bearer`. The token only identifies the user; whether they may act on a project (owner or
+participant) is checked against the database on every request, so access changes apply immediately.
+
 ## Docker
 
 Run the API and PostgreSQL together:
@@ -47,6 +60,8 @@ docker compose up --build
 | `MAX_DOCUMENT_SIZE` | `10485760` (10 MB) | largest accepted document upload, in bytes |
 | `MAIL_BACKEND` | `console` | how share emails are sent: `ses` (deployed environments) or `console` (logged) |
 | `MAIL_SENDER` | – | verified SES address share emails come from (required when `MAIL_BACKEND=ses`) |
+| `JWT_SECRET_KEY` | an insecure development value | signs access tokens from `POST /login` (production: SSM parameter `/project-manager/jwt-secret-key`) |
+| `ACCESS_TOKEN_MAX_AGE` | `3600` (1 hour) | how long an access token stays valid, in seconds |
 | `SHARE_SECRET_KEY` | an insecure development value | signs share-link tokens (production: SSM parameter `/project-manager/share-secret-key`) |
 | `SHARE_LINK_MAX_AGE` | `604800` (7 days) | how long a share link stays valid, in seconds |
 | `PUBLIC_BASE_URL` | the address of the request | base of the links in share emails, e.g. `https://pm.example.com` |
@@ -73,7 +88,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request and on pu
   `alembic upgrade head` runs before the app is (re)started
 
 The deploy job is skipped until the `EC2_INSTANCE_ID` repository variable is set, and needs the `S3_BUCKET`
-(documents bucket) and `MAIL_SENDER` (verified SES sender) variables, plus the SSM parameter
-`/project-manager/share-secret-key`. `PUBLIC_BASE_URL` is optional. It signs in to AWS with OIDC
+(documents bucket) and `MAIL_SENDER` (verified SES sender) variables, plus the SSM parameters
+`/project-manager/share-secret-key` and `/project-manager/jwt-secret-key`. `PUBLIC_BASE_URL` is optional. It signs in to AWS with OIDC
 when the `AWS_ROLE_ARN` variable is set, or otherwise with the `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` secrets
 of a deploy-only IAM user.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deploy an image to the EC2 host through SSM Run Command (no SSH) and wait for the result.
 #
-# On the host it: writes docker-compose.prod.yaml and .env (DB password and share-link secret from
+# On the host it: writes docker-compose.prod.yaml and .env (DB password, share-link and JWT secrets from
 # SSM Parameter Store), pulls the image from ECR, starts Postgres, runs `alembic upgrade head`,
 # starts the app and checks /health.
 #
@@ -27,8 +27,9 @@ cd /opt/project-manager
 echo '$compose_b64' | base64 -d > docker-compose.prod.yaml
 db_password=\$(aws ssm get-parameter --region $region --name $param_prefix/postgres-password --with-decryption --query Parameter.Value --output text)
 share_secret=\$(aws ssm get-parameter --region $region --name $param_prefix/share-secret-key --with-decryption --query Parameter.Value --output text)
+jwt_secret=\$(aws ssm get-parameter --region $region --name $param_prefix/jwt-secret-key --with-decryption --query Parameter.Value --output text)
 umask 077
-printf 'APP_IMAGE=%s\nPOSTGRES_PASSWORD=%s\nS3_BUCKET=%s\nAWS_REGION=%s\nSHARE_SECRET_KEY=%s\nMAIL_SENDER=%s\nPUBLIC_BASE_URL=%s\n' '$image' "\$db_password" '$s3_bucket' '$region' "\$share_secret" '$mail_sender' '$public_base_url' > .env
+printf 'APP_IMAGE=%s\nPOSTGRES_PASSWORD=%s\nS3_BUCKET=%s\nAWS_REGION=%s\nSHARE_SECRET_KEY=%s\nMAIL_SENDER=%s\nPUBLIC_BASE_URL=%s\nJWT_SECRET_KEY=%s\n' '$image' "\$db_password" '$s3_bucket' '$region' "\$share_secret" '$mail_sender' '$public_base_url' "\$jwt_secret" > .env
 aws ecr get-login-password --region $region | docker login --username AWS --password-stdin $registry
 docker compose -f docker-compose.prod.yaml pull app
 docker compose -f docker-compose.prod.yaml up -d --wait db

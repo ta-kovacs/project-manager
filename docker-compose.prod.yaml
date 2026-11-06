@@ -32,6 +32,8 @@ services:
       MAIL_SENDER: ${MAIL_SENDER:?MAIL_SENDER is not set}
       SHARE_SECRET_KEY: ${SHARE_SECRET_KEY:?SHARE_SECRET_KEY is not set}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      # Signs the access tokens (JWT) issued by POST /login.
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY is not set}
     ports:
       - "80:8000"
     depends_on:
