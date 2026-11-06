@@ -19,3 +19,11 @@ S3_BUCKET = os.getenv("S3_BUCKET")
 
 # Largest accepted document upload, in bytes (default 10 MB).
 MAX_DOCUMENT_SIZE = int(os.getenv("MAX_DOCUMENT_SIZE", 10 * 1024 * 1024))
+
+# How share emails (GET /project/{id}/share) are sent (see app/mailer.py):
+#   "ses"     - AWS SES; used in deployed environments
+#   "console" - written to the application log; for local development
+MAIL_BACKEND = os.getenv("MAIL_BACKEND", "console")
+
+# ses backend: the verified SES identity emails are sent from.
+MAIL_SENDER = os.getenv("MAIL_SENDER")
