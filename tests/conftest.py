@@ -108,6 +108,14 @@ def auth(registered_user, credentials):
     return (credentials["username"], credentials["password"])
 
 
+@pytest.fixture
+def other_auth(register):
+    """HTTP Basic credentials of a second registered user."""
+    response = register(username="bob", password="bobs-password")
+    assert response.status_code == 201, response.text
+    return ("bob", "bobs-password")
+
+
 @pytest.fixture(
     params=[
         pytest.param(None, id="no-credentials"),
@@ -136,3 +144,14 @@ def create_project(client, auth, project_data):
         return client.post("/projects", json=_payload(project_data, overrides, exclude), auth=auth)
 
     return _create_project
+
+
+@pytest.fixture
+def list_projects(client, auth):
+    """GET /projects as the default user; pass `auth` to send other credentials (None for none)."""
+    default_auth = auth
+
+    def _list_projects(*, auth=default_auth):
+        return client.get("/projects", auth=auth)
+
+    return _list_projects
