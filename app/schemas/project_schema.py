@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, StringConstraints
+from pydantic import BaseModel, ConfigDict, EmailStr, StringConstraints
 
 from app.models.project_user import ProjectRole
 from app.schemas.user_schema import UserRead
@@ -44,3 +44,11 @@ class MemberRead(BaseModel):
     project_id: int
     user: UserRead
     role: ProjectRole
+
+
+class ShareRead(BaseModel):
+    """Confirmation that a share link was emailed."""
+
+    project_id: int
+    email: EmailStr
+    expires_in: int

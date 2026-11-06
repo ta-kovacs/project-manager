@@ -1,11 +1,16 @@
+from collections.abc import Callable
+
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.project import Project
 from app.models.project_user import ProjectRole, ProjectUser
+from app.config import SHARE_LINK_MAX_AGE
+from app.mailer import Mailer
 from app.models.user import User
 from app.repositories import project_repository, user_repository
 from app.schemas.project_schema import ProjectCreate, ProjectUpdate
+from app.security import create_share_token
 from app.storage import Storage
 
 
@@ -94,3 +99,24 @@ def invite_user(session: Session, user: User, project_id: int, username: str) ->
         # Invited by a concurrent request between the check and the insert.
         session.rollback()
         raise AlreadyMemberError(username)
+
+
+def share_project(
+    session: Session, mailer: Mailer, user: User, project_id: int, email: str, join_url: Callable[[str], str]
+) -> None:
+    """Email `email` a link that gives whoever opens it participant access; only the owner may do this.
+
+    `join_url` turns a share token into the full GET /join link.
+    """
+    project = _get_owner_membership(session, user, project_id).project
+    link = join_url(create_share_token(project.id, email))
+    days = SHARE_LINK_MAX_AGE // (24 * 60 * 60)
+    mailer.send(
+        to=email,
+        subject=f'{user.username} shared the project "{project.name}" with you',
+        body=(
+            f'{user.username} invited you to the project "{project.name}" on Project Manager.\n\n'
+            f"Open this link and sign in to join it as a participant:\n{link}\n\n"
+            f"The link is valid for {days} days. If you weren't expecting this, you can ignore this email."
+        ),
+    )

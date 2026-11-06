@@ -27,3 +27,14 @@ MAIL_BACKEND = os.getenv("MAIL_BACKEND", "console")
 
 # ses backend: the verified SES identity emails are sent from.
 MAIL_SENDER = os.getenv("MAIL_SENDER")
+
+# Signs the tokens in share links (GET /project/{id}/share -> GET /join). The default is for local
+# development only; production reads a real secret from SSM Parameter Store.
+SHARE_SECRET_KEY = os.getenv("SHARE_SECRET_KEY", "dev-only-insecure-share-secret")
+
+# How long a share link stays valid, in seconds (default 7 days).
+SHARE_LINK_MAX_AGE = int(os.getenv("SHARE_LINK_MAX_AGE", 7 * 24 * 60 * 60))
+
+# Public address of the API, used to build the links in share emails (e.g. https://pm.example.com).
+# When unset, the address the share request was made to is used.
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL")

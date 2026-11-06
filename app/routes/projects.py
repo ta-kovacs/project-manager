@@ -1,10 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import EmailStr
 from sqlalchemy.orm import Session
 
+from app.config import PUBLIC_BASE_URL, SHARE_LINK_MAX_AGE
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.mailer import Mailer, MailDeliveryError, get_mailer
 from app.models.user import User
-from app.schemas.project_schema import MemberRead, ProjectCreate, ProjectRead, ProjectUpdate
+from app.schemas.project_schema import MemberRead, ProjectCreate, ProjectRead, ProjectUpdate, ShareRead
 from app.services import project_service
 from app.storage import Storage, get_storage
 
@@ -122,3 +125,37 @@ def invite_user(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="User not found")
     except project_service.AlreadyMemberError:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="User already has access to the project")
+
+
+@router.get(
+    "/project/{project_id}/share",
+    response_model=ShareRead,
+    responses={
+        403: {"description": "Only the project's owner can share it"},
+        404: {"description": "Project doesn't exist or the caller has no access"},
+        502: {"description": "The email could not be sent"},
+    },
+)
+def share_project(
+    project_id: int,
+    request: Request,
+    email: EmailStr = Query(alias="with", description="Email address to send the join link to"),
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+    mailer: Mailer = Depends(get_mailer),
+):
+    """Email a GET /join link that gives whoever opens it participant access (owner only)."""
+    base_url = (PUBLIC_BASE_URL or str(request.base_url)).rstrip("/")
+
+    def join_url(token: str) -> str:
+        return f"{base_url}/join?token={token}"
+
+    try:
+        project_service.share_project(session, mailer, user, project_id, email, join_url)
+    except project_service.ProjectNotFoundError:
+        raise _project_not_found()
+    except project_service.NotProjectOwnerError:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Only the project owner can share it")
+    except MailDeliveryError:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="The email could not be sent")
+    return ShareRead(project_id=project_id, email=email, expires_in=SHARE_LINK_MAX_AGE)
