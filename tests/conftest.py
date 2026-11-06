@@ -329,3 +329,32 @@ def list_project_documents(client, auth):
         return client.get(f"/project/{project_id}/documents", auth=auth)
 
     return _list_project_documents
+
+
+@pytest.fixture
+def upload_files():
+    """Valid files for one upload, as (filename, content) pairs."""
+    return [("report.pdf", b"%PDF-1.4 report"), ("notes.docx", b"PK\x03\x04 notes")]
+
+
+@pytest.fixture
+def upload_documents(client, auth, upload_files):
+    """POST /project/{id}/documents as the default user, uploading `upload_files`; pass `files` to
+    upload others ([] for none), `auth` for other credentials (None for none)."""
+    default_auth = auth
+
+    def _upload_documents(project_id, *, auth=default_auth, files=None):
+        files = upload_files if files is None else files
+        multipart = [("files", (name, content)) for name, content in files] or None
+        return client.post(f"/project/{project_id}/documents", files=multipart, auth=auth)
+
+    return _upload_documents
+
+
+@pytest.fixture
+def stored_files(storage):
+    """Returns the paths of all files currently in `storage`."""
+    def _stored_files():
+        return [path for path in storage.root.rglob("*") if path.is_file()] if storage.root.exists() else []
+
+    return _stored_files
