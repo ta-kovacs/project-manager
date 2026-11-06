@@ -114,7 +114,7 @@ def test_upload_documents_requires_authentication(upload_documents, project, bad
     response = upload_documents(project["id"], auth=bad_auth)
 
     assert response.status_code == 401
-    assert response.headers["WWW-Authenticate"] == "Basic"
+    assert response.headers["WWW-Authenticate"] == "Bearer"
     assert_nothing_stored()
 
 

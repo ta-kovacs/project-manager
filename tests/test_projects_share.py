@@ -105,7 +105,7 @@ def test_share_project_requires_authentication(share_project, project, bad_auth,
     response = share_project(project["id"], EMAIL, auth=bad_auth)
 
     assert response.status_code == 401
-    assert response.headers["WWW-Authenticate"] == "Basic"
+    assert response.headers["WWW-Authenticate"] == "Bearer"
     assert mailer.sent == []
 
 

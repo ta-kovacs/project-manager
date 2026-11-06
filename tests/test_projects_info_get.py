@@ -33,4 +33,4 @@ def test_get_project_info_requires_authentication(get_project_info, project, bad
     response = get_project_info(project["id"], auth=bad_auth)
 
     assert response.status_code == 401
-    assert response.headers["WWW-Authenticate"] == "Basic"
+    assert response.headers["WWW-Authenticate"] == "Bearer"

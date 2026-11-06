@@ -74,5 +74,5 @@ def test_delete_document_requires_authentication(delete_document, document, bad_
     response = delete_document(document.id, auth=bad_auth)
 
     assert response.status_code == 401
-    assert response.headers["WWW-Authenticate"] == "Basic"
+    assert response.headers["WWW-Authenticate"] == "Bearer"
     assert_still_exists()

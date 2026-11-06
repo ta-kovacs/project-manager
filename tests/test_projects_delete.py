@@ -103,5 +103,5 @@ def test_delete_project_requires_authentication(delete_project, get_project_info
     response = delete_project(project["id"], auth=bad_auth)
 
     assert response.status_code == 401
-    assert response.headers["WWW-Authenticate"] == "Basic"
+    assert response.headers["WWW-Authenticate"] == "Bearer"
     assert get_project_info(project["id"]).status_code == 200
