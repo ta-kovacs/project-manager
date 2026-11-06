@@ -1,7 +1,10 @@
 """DELETE /project/{id}: delete a project and its documents (owner only)."""
+import pytest
+
 from app.models.document import Document
 from app.models.project import Project
 from app.models.project_user import ProjectUser
+from app.storage import StoredFileNotFoundError
 
 
 def test_delete_project_by_owner(delete_project, get_project_info, list_projects, project):
@@ -21,6 +24,50 @@ def test_delete_project_removes_documents_and_memberships(
     assert db_session.query(Project).count() == 0
     assert db_session.query(Document).count() == 0
     assert db_session.query(ProjectUser).count() == 0
+
+
+def test_delete_project_removes_document_files(delete_project, project, document, storage):
+    storage_key = document.storage_key
+
+    delete_project(project["id"])
+
+    with pytest.raises(StoredFileNotFoundError):
+        storage.load(storage_key)
+
+
+def test_delete_project_keeps_other_projects_files(
+    delete_project, create_project, project, document, other_auth, storage, db_session
+):
+    other_project = create_project(name="Bob's project", auth=other_auth).json()
+    other_document = Document(
+        project_id=other_project["id"],
+        storage_key=f"projects/{other_project['id']}/documents/plan",
+        original_filename="plan.pdf",
+        content_type="application/pdf",
+    )
+    storage.save(other_document.storage_key, b"bob's file")
+    db_session.add(other_document)
+    db_session.commit()
+
+    delete_project(project["id"])
+
+    assert storage.load(other_document.storage_key) == b"bob's file"
+
+
+@pytest.mark.parametrize(
+    ("caller", "expected_status"),
+    [
+        pytest.param("participant_auth", 403, id="participant"),
+        pytest.param("other_auth", 404, id="non-member"),
+    ],
+)
+def test_delete_project_refused_keeps_document_files(
+    delete_project, project, document, document_content, storage, request, caller, expected_status
+):
+    response = delete_project(project["id"], auth=request.getfixturevalue(caller))
+
+    assert response.status_code == expected_status
+    assert storage.load(document.storage_key) == document_content
 
 
 def test_delete_project_twice_is_not_found(delete_project, project):
