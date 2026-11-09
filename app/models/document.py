@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import BigInteger, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -26,6 +26,12 @@ class Document(Base):
     content_type: Mapped[str] = mapped_column(
         String(100),
         nullable=False,
+    )
+
+    # Size of the stored file in bytes; NULL for documents uploaded before sizes were recorded.
+    size_bytes: Mapped[int | None] = mapped_column(
+        BigInteger,
+        nullable=True,
     )
 
     project_id: Mapped[int] = mapped_column(

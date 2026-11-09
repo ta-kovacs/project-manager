@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import case, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.project import Project
@@ -63,3 +63,25 @@ def add_member(session: Session, project: Project, user: User, role: ProjectRole
     session.commit()
     session.refresh(membership)
     return membership
+
+
+def adjust_storage_used(session: Session, project: Project, delta: int, *, limit: int | None = None) -> bool:
+    """Add `delta` bytes (negative to release them) to the project's storage counter, without committing.
+
+    With `limit`, the change is only made if the counter stays within it; returns whether it was made.
+    The check and the change are one UPDATE, so concurrent uploads can't both slip under the limit.
+    The counter never goes below zero.
+    """
+    new_value = Project.storage_used_bytes + delta
+    statement = (
+        update(Project)
+        .where(Project.id == project.id)
+        .values(storage_used_bytes=case((new_value < 0, 0), else_=new_value))
+        .execution_options(synchronize_session=False)
+    )
+    if limit is not None:
+        statement = statement.where(new_value <= limit)
+    applied = session.execute(statement).rowcount == 1
+    # The UPDATE ran in SQL; reload the counter the next time it is read.
+    session.expire(project, ["storage_used_bytes"])
+    return applied

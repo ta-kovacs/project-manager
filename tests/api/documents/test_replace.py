@@ -20,11 +20,16 @@ def assert_unchanged(download_document, document, document_content):
 
 
 @pytest.mark.parametrize("caller", ["auth", "participant_auth"], ids=["owner", "participant"])
-def test_replace_document_returns_updated_document(replace_document, document, request, caller):
+def test_replace_document_returns_updated_document(replace_document, document, new_file, request, caller):
     response = replace_document(document.id, auth=request.getfixturevalue(caller))
 
     assert response.status_code == 200
-    assert response.json() == {"id": document.id, "original_filename": "report.docx", "content_type": DOCX}
+    assert response.json() == {
+        "id": document.id,
+        "original_filename": "report.docx",
+        "content_type": DOCX,
+        "size_bytes": len(new_file["content"]),
+    }
 
 
 def test_replace_document_serves_new_file(replace_document, download_document, document, new_file):

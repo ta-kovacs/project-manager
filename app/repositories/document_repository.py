@@ -22,10 +22,13 @@ def create_many(session: Session, documents: list[Document]) -> list[Document]:
     return documents
 
 
-def update(session: Session, document: Document, storage_key: str, original_filename: str, content_type: str) -> Document:
+def update(
+    session: Session, document: Document, storage_key: str, original_filename: str, content_type: str, size_bytes: int
+) -> Document:
     document.storage_key = storage_key
     document.original_filename = original_filename
     document.content_type = content_type
+    document.size_bytes = size_bytes
     session.commit()
     session.refresh(document)
     return document
