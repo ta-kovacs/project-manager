@@ -1,7 +1,10 @@
+import hmac
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.config import INTERNAL_API_TOKEN
 from app.database import get_db
 from app.models.user import User
 from app.repositories import user_repository
@@ -39,3 +42,25 @@ def get_current_user(
     if user is None:
         raise _unauthorized()
     return user
+
+
+# Internal endpoints (called by our own AWS Lambda functions, not by users) send the shared
+# INTERNAL_API_TOKEN as `Authorization: Bearer <token>` instead of a user's access token.
+_internal_bearer_auth = HTTPBearer(auto_error=False, description="INTERNAL_API_TOKEN shared with the Lambda functions")
+
+
+def require_internal_token(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_internal_bearer_auth),
+) -> None:
+    """Rejects the request unless it carries INTERNAL_API_TOKEN; with no token configured, rejects all."""
+    if (
+        INTERNAL_API_TOKEN is None
+        or credentials is None
+        # constant-time comparison, so response times don't reveal how much of a guess was right
+        or not hmac.compare_digest(credentials.credentials.encode(), INTERNAL_API_TOKEN.encode())
+    ):
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid internal token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )

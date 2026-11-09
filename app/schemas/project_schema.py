@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints
+from pydantic import AwareDatetime, BaseModel, ConfigDict, EmailStr, Field, NonNegativeInt, StringConstraints
 
 from app.models.project_user import ProjectRole
 from app.schemas.user_schema import UserRead
@@ -55,3 +55,9 @@ class ShareRead(BaseModel):
     email: EmailStr
     expires_in: int
 
+
+class StorageUsageReport(BaseModel):
+    """A project's storage usage, as measured in S3 by the storage-usage Lambda."""
+
+    total_size_bytes: NonNegativeInt
+    measured_at: AwareDatetime = Field(description="When the measurement started (with a timezone)")

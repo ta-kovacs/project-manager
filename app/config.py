@@ -25,6 +25,11 @@ MAX_DOCUMENT_SIZE = int(os.getenv("MAX_DOCUMENT_SIZE", 10 * 1024 * 1024))
 # storage-usage Lambda (lambdas/storage_usage), which measures what S3 actually holds.
 PROJECT_STORAGE_LIMIT = int(os.getenv("PROJECT_STORAGE_LIMIT", 100 * 1024 * 1024))
 
+# Shared secret the storage-usage Lambda sends as `Authorization: Bearer <token>` to
+# PUT /internal/projects/{id}/storage-usage. When unset, that endpoint rejects every request.
+# Production reads it from SSM Parameter Store.
+INTERNAL_API_TOKEN = os.getenv("INTERNAL_API_TOKEN") or None
+
 # How share emails (GET /project/{id}/share) are sent (see app/mailer.py):
 #   "ses"     - AWS SES; used in deployed environments
 #   "console" - written to the application log; for local development

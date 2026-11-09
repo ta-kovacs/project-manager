@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from datetime import UTC, datetime
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -143,3 +144,17 @@ def join_project(session: Session, user: User, token: str) -> ProjectUser:
         # Joined through a concurrent request (e.g. the link was opened twice at once).
         session.rollback()
         return project_repository.get_membership(session, project.id, user.id)
+
+
+def record_measured_storage(session: Session, project_id: int, total_size_bytes: int, measured_at: datetime) -> None:
+    """Store the storage usage the storage-usage Lambda measured in S3 for a project.
+
+    A measurement older than the one already stored is ignored (it is not an error): Lambda runs can
+    finish, or be retried, out of order. Raises ProjectNotFoundError if the project doesn't exist,
+    e.g. because it was deleted after its files changed.
+    """
+    stored = project_repository.record_measured_storage(
+        session, project_id, total_size_bytes, measured_at.astimezone(UTC)
+    )
+    if not stored and project_repository.get_project(session, project_id) is None:
+        raise ProjectNotFoundError(project_id)
