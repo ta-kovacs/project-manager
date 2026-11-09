@@ -5,4 +5,5 @@ pytest_plugins = [
     "tests.fixtures.projects",
     "tests.fixtures.documents",
     "tests.fixtures.sharing",
+    "tests.fixtures.internal",
 ]
