@@ -16,8 +16,8 @@ jobs:
           python-version: "3.14"
           cache: pip
       - run: pip install -r requirements.txt
-      - name: Compile app
-        run: python -m compileall -q app/
+      - name: Compile app and Lambda functions
+        run: python -m compileall -q app/ lambdas/
 
   test:
     name: test (${{ matrix.storage }} storage)
@@ -138,6 +138,19 @@ jobs:
           MAIL_SENDER: ${{ vars.MAIL_SENDER }}
           PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
         run: bash .github/scripts/deploy-ec2.sh "${{ vars.EC2_INSTANCE_ID }}" "${{ steps.image.outputs.uri }}"
+
+      # After the app, so the database already has the columns the Lambda's reports are stored in.
+      # Skipped until the STORAGE_USAGE_LAMBDA variable names the function; the deploy role or user needs
+      # lambda:UpdateFunctionCode and lambda:GetFunctionConfiguration on it.
+      - name: Deploy storage-usage Lambda
+        if: vars.STORAGE_USAGE_LAMBDA != ''
+        run: |
+          (cd lambdas/storage_usage && zip -q "$RUNNER_TEMP/storage-usage-lambda.zip" handler.py)
+          aws lambda update-function-code \
+            --function-name "${{ vars.STORAGE_USAGE_LAMBDA }}" \
+            --zip-file "fileb://$RUNNER_TEMP/storage-usage-lambda.zip" \
+            --query LastModified --output text
+          aws lambda wait function-updated-v2 --function-name "${{ vars.STORAGE_USAGE_LAMBDA }}"
 
       - name: Summary
         run: echo "Deployed \`${{ steps.image.outputs.uri }}\` to instance \`${{ vars.EC2_INSTANCE_ID }}\`" >> "$GITHUB_STEP_SUMMARY"
