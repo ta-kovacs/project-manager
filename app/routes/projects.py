@@ -55,7 +55,7 @@ def get_project_info(
     try:
         return project_service.get_project(session, user, project_id)
     except project_service.ProjectNotFoundError:
-        raise _project_not_found()
+        raise _project_not_found() from None
 
 
 @router.put(
@@ -73,7 +73,7 @@ def update_project_info(
     try:
         return project_service.update_project(session, user, project_id, project_update)
     except project_service.ProjectNotFoundError:
-        raise _project_not_found()
+        raise _project_not_found() from None
 
 
 @router.delete(
@@ -94,9 +94,9 @@ def delete_project(
     try:
         project_service.delete_project(session, storage, user, project_id)
     except project_service.ProjectNotFoundError:
-        raise _project_not_found()
+        raise _project_not_found() from None
     except project_service.NotProjectOwnerError:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Only the project owner can delete it")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Only the project owner can delete it") from None
 
 
 @router.post(
@@ -119,13 +119,13 @@ def invite_user(
     try:
         return project_service.invite_user(session, user, project_id, username)
     except project_service.ProjectNotFoundError:
-        raise _project_not_found()
+        raise _project_not_found() from None
     except project_service.NotProjectOwnerError:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Only the project owner can invite users")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Only the project owner can invite users") from None
     except project_service.UserNotFoundError:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="User not found") from None
     except project_service.AlreadyMemberError:
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="User already has access to the project")
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="User already has access to the project") from None
 
 
 @router.get(
@@ -154,11 +154,11 @@ def share_project(
     try:
         project_service.share_project(session, mailer, user, project_id, email, join_url)
     except project_service.ProjectNotFoundError:
-        raise _project_not_found()
+        raise _project_not_found() from None
     except project_service.NotProjectOwnerError:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Only the project owner can share it")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Only the project owner can share it") from None
     except MailDeliveryError:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="The email could not be sent")
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="The email could not be sent") from None
     return ShareRead(project_id=project_id, email=email, expires_in=SHARE_LINK_MAX_AGE)
 
 
@@ -184,8 +184,8 @@ def join_project(
     try:
         return project_service.join_project(session, user, token)
     except InvalidShareTokenError:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid share link")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid share link") from None
     except ExpiredShareTokenError:
-        raise HTTPException(status.HTTP_410_GONE, detail="This share link has expired")
+        raise HTTPException(status.HTTP_410_GONE, detail="This share link has expired") from None
     except project_service.ProjectNotFoundError:
-        raise _project_not_found()
+        raise _project_not_found() from None

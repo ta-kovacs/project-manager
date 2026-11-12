@@ -96,10 +96,10 @@ def invite_user(session: Session, user: User, project_id: int, username: str) ->
         raise AlreadyMemberError(username)
     try:
         return project_repository.add_member(session, project, invitee, ProjectRole.PARTICIPANT)
-    except IntegrityError:
+    except IntegrityError as error:
         # Invited by a concurrent request between the check and the insert.
         session.rollback()
-        raise AlreadyMemberError(username)
+        raise AlreadyMemberError(username) from error
 
 
 def share_project(

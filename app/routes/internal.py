@@ -33,4 +33,4 @@ def report_storage_usage(
     try:
         project_service.record_measured_storage(session, project_id, report.total_size_bytes, report.measured_at)
     except project_service.ProjectNotFoundError:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Project not found") from None

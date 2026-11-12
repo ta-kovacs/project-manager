@@ -78,7 +78,7 @@ def list_project_documents(
     try:
         return document_service.list_project_documents(session, user, project_id)
     except project_service.ProjectNotFoundError:
-        raise _project_not_found()
+        raise _project_not_found() from None
 
 
 @router.post(
@@ -102,16 +102,16 @@ def upload_documents(
     try:
         return document_service.upload_documents(session, storage, user, project_id, uploads)
     except project_service.ProjectNotFoundError:
-        raise _project_not_found()
+        raise _project_not_found() from None
     except document_service.TooManyFilesError:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"At most {document_service.MAX_FILES_PER_UPLOAD} files can be uploaded at once",
-        )
+        ) from None
     except document_service.InvalidDocumentError as error:
-        raise _invalid_file(error, name_file=True)
+        raise _invalid_file(error, name_file=True) from error
     except document_service.ProjectStorageLimitError:
-        raise _storage_limit_reached()
+        raise _storage_limit_reached() from None
 
 
 @router.get(
@@ -129,9 +129,9 @@ def download_document(
     try:
         document, data = document_service.download_document(session, storage, user, document_id)
     except document_service.DocumentNotFoundError:
-        raise _document_not_found()
+        raise _document_not_found() from None
     except document_service.DocumentFileMissingError:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Document file not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Document file not found") from None
 
     return Response(
         content=data,
@@ -158,11 +158,11 @@ def replace_document(
             session, storage, user, document_id, file.filename, _read_upload(file)
         )
     except document_service.DocumentNotFoundError:
-        raise _document_not_found()
+        raise _document_not_found() from None
     except document_service.InvalidDocumentError as error:
-        raise _invalid_file(error)
+        raise _invalid_file(error) from error
     except document_service.ProjectStorageLimitError:
-        raise _storage_limit_reached()
+        raise _storage_limit_reached() from None
 
 
 @router.delete(
@@ -180,6 +180,6 @@ def delete_document(
     try:
         document_service.delete_document(session, storage, user, document_id)
     except document_service.DocumentNotFoundError:
-        raise _document_not_found()
+        raise _document_not_found() from None
     except document_service.NotProjectOwnerError:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Only the project owner can delete documents")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Only the project owner can delete documents") from None
