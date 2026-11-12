@@ -1,15 +1,15 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
 from alembic import context
+from sqlalchemy import engine_from_config, pool
+
+import app.models  # noqa: F401  (registers every model on Base.metadata, which autogenerate compares against)
+from app.config import DATABASE_URL
+from app.models.base import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-
-from app.config import DATABASE_URL
 
 config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
@@ -22,9 +22,6 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-from app.models.base import Base
-from app.models import User
-
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

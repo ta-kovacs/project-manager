@@ -1,9 +1,14 @@
 import enum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Enum, ForeignKey, Index, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+
+if TYPE_CHECKING:
+    from app.models.project import Project
+    from app.models.user import User
 
 
 class ProjectRole(str, enum.Enum):

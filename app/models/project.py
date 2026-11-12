@@ -1,10 +1,15 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, DateTime, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
-from app.models.project_user import ProjectRole
+from app.models.project_user import ProjectRole, ProjectUser
+
+if TYPE_CHECKING:
+    from app.models.document import Document
+    from app.models.user import User
 
 
 class Project(Base):
