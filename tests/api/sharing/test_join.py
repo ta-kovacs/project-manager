@@ -83,7 +83,12 @@ def test_join_project_invalid_token_is_rejected(join_project, project, db_sessio
 
 
 def test_join_project_tampered_token_is_rejected(join_project, share_token, db_session):
-    response = join_project(share_token[:-1] + ("A" if share_token[-1] != "A" else "B"))
+    # Change the signature's first character: the last one also carries base64 padding bits that
+    # decoding ignores, so changing it can leave the signature valid.
+    payload, signature = share_token.rsplit(".", 1)
+    tampered = ("B" if signature[0] == "A" else "A") + signature[1:]
+
+    response = join_project(f"{payload}.{tampered}")
 
     assert response.status_code == 400
     assert db_session.query(ProjectUser).count() == 1
