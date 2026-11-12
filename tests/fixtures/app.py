@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-import app.models  # noqa: F401  (registers every model on Base.metadata)
+import app.models  # registers every model on Base.metadata
 from app.database import get_db
 from app.mailer import get_mailer
 from app.main import app

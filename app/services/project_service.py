@@ -4,10 +4,10 @@ from datetime import UTC, datetime
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.project import Project
-from app.models.project_user import ProjectRole, ProjectUser
 from app.config import SHARE_LINK_MAX_AGE
 from app.mailer import Mailer
+from app.models.project import Project
+from app.models.project_user import ProjectRole, ProjectUser
 from app.models.user import User
 from app.repositories import project_repository, user_repository
 from app.schemas.project_schema import ProjectCreate, ProjectUpdate

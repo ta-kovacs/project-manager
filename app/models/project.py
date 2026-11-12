@@ -1,10 +1,11 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, String, Integer, Text, text
+from sqlalchemy import BigInteger, DateTime, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 from app.models.project_user import ProjectRole
+
 
 class Project(Base):
     __tablename__ = "projects"

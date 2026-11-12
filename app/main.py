@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+
 from app.routes import auth, documents, internal, projects
 
 app = FastAPI(

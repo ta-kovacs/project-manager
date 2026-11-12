@@ -33,7 +33,7 @@ def _protected_endpoints():
 
 def test_public_endpoints_exist():
     # A renamed or removed endpoint must not linger here, quietly exempting whatever reuses the path.
-    assert PUBLIC_ENDPOINTS <= set(_endpoints())
+    assert PUBLIC_ENDPOINTS.issubset(_endpoints())
 
 
 def test_there_are_protected_endpoints():

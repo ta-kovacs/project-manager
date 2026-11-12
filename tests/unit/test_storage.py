@@ -5,7 +5,6 @@ from botocore.exceptions import ClientError
 import app.storage as storage_module
 from app.storage import LocalStorage, S3Storage, StoredFileNotFoundError
 
-
 # --- both backends (`any_storage` runs each test for local disk and for mocked S3) ---------------
 
 def test_save_then_load_returns_same_bytes(any_storage):
