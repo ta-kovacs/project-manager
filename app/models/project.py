@@ -1,4 +1,6 @@
-from sqlalchemy import String, Integer, Text
+from datetime import datetime
+
+from sqlalchemy import BigInteger, DateTime, String, Integer, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -19,6 +21,23 @@ class Project(Base):
 
     description: Mapped[str] = mapped_column(
         Text,
+        nullable=True,
+    )
+
+    # Bytes of document files the project holds; checked against PROJECT_STORAGE_LIMIT on upload.
+    # Denormalized on purpose: the API adjusts it on every upload, replace and delete, and the
+    # storage-usage Lambda overwrites it with the total it measures in S3 (see storage_measured_at).
+    storage_used_bytes: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+    )
+
+    # When the storage-usage Lambda last measured storage_used_bytes; NULL until it first does.
+    # An older measurement arriving late (e.g. a retried Lambda run) never overwrites a newer one.
+    storage_measured_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
         nullable=True,
     )
 

@@ -15,6 +15,7 @@ def test_create_project_returns_full_info(create_project, project_data, register
         **project_data,
         "owner": registered_user,
         "documents": [],
+        "storage_used_bytes": 0,
     }
 
 

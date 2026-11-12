@@ -3,7 +3,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.config import MAX_DOCUMENT_SIZE
+from app.config import MAX_DOCUMENT_SIZE, PROJECT_STORAGE_LIMIT
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
@@ -45,8 +45,15 @@ def _read_upload(file: UploadFile) -> bytes:
     return file.file.read(MAX_DOCUMENT_SIZE + 1)  # one byte over the limit is enough to reject it
 
 
+def _storage_limit_reached() -> HTTPException:
+    return HTTPException(
+        status.HTTP_413_CONTENT_TOO_LARGE,
+        detail=f"The project's documents can take up at most {PROJECT_STORAGE_LIMIT} bytes in total",
+    )
+
+
 _UPLOAD_ERRORS = {
-    413: {"description": "A file is larger than the allowed size"},
+    413: {"description": "A file is larger than the allowed size, or the project's storage limit would be exceeded"},
     415: {"description": "A file is not a PDF or DOCX document"},
 }
 
@@ -103,6 +110,8 @@ def upload_documents(
         )
     except document_service.InvalidDocumentError as error:
         raise _invalid_file(error, name_file=True)
+    except document_service.ProjectStorageLimitError:
+        raise _storage_limit_reached()
 
 
 @router.get(
@@ -152,6 +161,8 @@ def replace_document(
         raise _document_not_found()
     except document_service.InvalidDocumentError as error:
         raise _invalid_file(error)
+    except document_service.ProjectStorageLimitError:
+        raise _storage_limit_reached()
 
 
 @router.delete(

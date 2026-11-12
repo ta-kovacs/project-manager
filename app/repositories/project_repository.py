@@ -1,4 +1,6 @@
-from sqlalchemy import select
+from datetime import datetime
+
+from sqlalchemy import case, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.project import Project
@@ -63,3 +65,47 @@ def add_member(session: Session, project: Project, user: User, role: ProjectRole
     session.commit()
     session.refresh(membership)
     return membership
+
+
+def adjust_storage_used(session: Session, project: Project, delta: int, *, limit: int | None = None) -> bool:
+    """Add `delta` bytes (negative to release them) to the project's storage counter, without committing.
+
+    With `limit`, the change is only made if the counter stays within it; returns whether it was made.
+    The check and the change are one UPDATE, so concurrent uploads can't both slip under the limit.
+    The counter never goes below zero.
+    """
+    new_value = Project.storage_used_bytes + delta
+    statement = (
+        update(Project)
+        .where(Project.id == project.id)
+        .values(storage_used_bytes=case((new_value < 0, 0), else_=new_value))
+        .execution_options(synchronize_session=False)
+    )
+    if limit is not None:
+        statement = statement.where(new_value <= limit)
+    applied = session.execute(statement).rowcount == 1
+    # The UPDATE ran in SQL; reload the counter the next time it is read.
+    session.expire(project, ["storage_used_bytes"])
+    return applied
+
+
+def record_measured_storage(session: Session, project_id: int, total_size_bytes: int, measured_at: datetime) -> bool:
+    """Set the project's storage counter to a measured total, unless a newer measurement is stored.
+
+    Returns whether it was stored (False also when the project doesn't exist).
+    """
+    statement = (
+        update(Project)
+        .where(
+            Project.id == project_id,
+            or_(Project.storage_measured_at.is_(None), Project.storage_measured_at < measured_at),
+        )
+        .values(storage_used_bytes=total_size_bytes, storage_measured_at=measured_at)
+        .execution_options(synchronize_session=False)
+    )
+    applied = session.execute(statement).rowcount == 1
+    session.commit()
+    if applied:
+        # The UPDATE ran in SQL; refresh the project in case this session already holds it.
+        session.get(Project, project_id, populate_existing=True)
+    return applied

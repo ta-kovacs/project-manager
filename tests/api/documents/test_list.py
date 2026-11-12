@@ -7,6 +7,7 @@ def as_json(document):
         "id": document.id,
         "original_filename": document.original_filename,
         "content_type": document.content_type,
+        "size_bytes": document.size_bytes,
     }
 
 

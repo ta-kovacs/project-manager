@@ -58,6 +58,8 @@ docker compose up --build
 | `S3_BUCKET` | – | the S3 bucket for document files (required when `STORAGE_BACKEND=s3`) |
 | `STORAGE_DIR` | `storage` | directory for document files with the `local` backend |
 | `MAX_DOCUMENT_SIZE` | `10485760` (10 MB) | largest accepted document upload, in bytes |
+| `PROJECT_STORAGE_LIMIT` | `104857600` (100 MB) | most document bytes one project may hold; uploads over it get `413` |
+| `INTERNAL_API_TOKEN` | unset (internal endpoints disabled) | shared secret of the storage-usage Lambda (production: SSM parameter `/project-manager/internal-api-token`) |
 | `MAIL_BACKEND` | `console` | how share emails are sent: `ses` (deployed environments) or `console` (logged) |
 | `MAIL_SENDER` | – | verified SES address share emails come from (required when `MAIL_BACKEND=ses`) |
 | `JWT_SECRET_KEY` | an insecure development value | signs access tokens from `POST /login` (production: SSM parameter `/project-manager/jwt-secret-key`) |
@@ -75,20 +77,29 @@ the API streams them to and from the bucket, so access checks always go through 
 tests they are stored on disk (or in a moto-mocked bucket with `TEST_STORAGE_BACKEND=s3`). The S3 client uses
 the standard AWS credential chain; on EC2 that is the instance role, so no keys are configured in the app.
 
+### Project storage limit (S3 + Lambda)
+
+Each project may hold at most `PROJECT_STORAGE_LIMIT` bytes of documents. The API keeps a running total per
+project and checks uploads against it; in AWS, the storage-usage Lambda (`lambdas/storage_usage/`) runs on
+every S3 change, measures what the bucket really holds for that project, and reports it back through
+`PUT /internal/projects/{id}/storage-usage` (authenticated with `INTERNAL_API_TOKEN`). The Lambda's
+configuration is described at the top of `lambdas/storage_usage/handler.py`.
+
 ## CI/CD
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `main`:
 
-- **build**: installs dependencies and byte-compiles `app/`
+- **build**: installs dependencies and byte-compiles `app/` and `lambdas/`
 - **test**: runs pytest against a throwaway PostgreSQL, once with local and once with (mocked) S3 storage
 - **docker**: builds the Docker image
 - **migrations**: applies all Alembic migrations against a throwaway PostgreSQL service
 - **deploy** (pushes to `main`, or a manual run on `main`): pushes the image to Amazon ECR, then deploys it to a
   single EC2 host through SSM Run Command: Postgres and the app run there with `docker-compose.prod.yaml`, and
-  `alembic upgrade head` runs before the app is (re)started
+  `alembic upgrade head` runs before the app is (re)started; then, if the `STORAGE_USAGE_LAMBDA` variable is set,
+  it updates that Lambda function's code
 
 The deploy job is skipped until the `EC2_INSTANCE_ID` repository variable is set, and needs the `S3_BUCKET`
 (documents bucket) and `MAIL_SENDER` (verified SES sender) variables, plus the SSM parameters
-`/project-manager/share-secret-key` and `/project-manager/jwt-secret-key`. `PUBLIC_BASE_URL` is optional. It signs in to AWS with OIDC
+`/project-manager/share-secret-key`, `/project-manager/jwt-secret-key` and `/project-manager/internal-api-token`. `PUBLIC_BASE_URL` is optional. It signs in to AWS with OIDC
 when the `AWS_ROLE_ARN` variable is set, or otherwise with the `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` secrets
 of a deploy-only IAM user.

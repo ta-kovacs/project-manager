@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, EmailStr, StringConstraints
+from pydantic import AwareDatetime, BaseModel, ConfigDict, EmailStr, Field, NonNegativeInt, StringConstraints
 
 from app.models.project_user import ProjectRole
 from app.schemas.user_schema import UserRead
@@ -24,6 +24,7 @@ class DocumentRead(BaseModel):
     id: int
     original_filename: str
     content_type: str
+    size_bytes: int | None = Field(description="Size of the file in bytes; null if it was uploaded before sizes were recorded")
 
 
 class ProjectRead(BaseModel):
@@ -35,6 +36,7 @@ class ProjectRead(BaseModel):
     description: str | None
     owner: UserRead
     documents: list[DocumentRead]
+    storage_used_bytes: int = Field(description="Bytes of document files the project holds")
 
 
 class MemberRead(BaseModel):
@@ -52,3 +54,10 @@ class ShareRead(BaseModel):
     project_id: int
     email: EmailStr
     expires_in: int
+
+
+class StorageUsageReport(BaseModel):
+    """A project's storage usage, as measured in S3 by the storage-usage Lambda."""
+
+    total_size_bytes: NonNegativeInt
+    measured_at: AwareDatetime = Field(description="When the measurement started (with a timezone)")

@@ -53,6 +53,7 @@ def test_list_projects_includes_documents(list_projects, projects, db_session):
         storage_key="projects/1/spec.pdf",
         original_filename="spec.pdf",
         content_type="application/pdf",
+        size_bytes=1234,
     )
     db_session.add(document)
     db_session.commit()
@@ -60,7 +61,7 @@ def test_list_projects_includes_documents(list_projects, projects, db_session):
     apollo, gemini = list_projects().json()
 
     assert apollo["documents"] == [
-        {"id": document.id, "original_filename": "spec.pdf", "content_type": "application/pdf"}
+        {"id": document.id, "original_filename": "spec.pdf", "content_type": "application/pdf", "size_bytes": 1234}
     ]
     assert gemini["documents"] == []
 

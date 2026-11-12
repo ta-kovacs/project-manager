@@ -2,6 +2,7 @@
 import pytest
 
 from app.models.document import Document
+from app.models.project import Project
 from app.routes import documents as document_routes
 from app.services import document_service
 from app.storage import S3Storage
@@ -17,7 +18,8 @@ def document_content():
 def make_document(db_session, storage):
     """Attach a PDF to a project, with its file in `storage`; returns the Document.
 
-    Inserted directly, so tests of other endpoints don't depend on the upload endpoint.
+    Inserted directly, so tests of other endpoints don't depend on the upload endpoint; the project's
+    storage usage is increased by the file's size, as an upload would.
     """
     def _make_document(project_id, *, filename="spec.pdf", content=b"%PDF-1.4 test document"):
         document = Document(
@@ -25,8 +27,10 @@ def make_document(db_session, storage):
             storage_key=f"projects/{project_id}/documents/{filename}",
             original_filename=filename,
             content_type="application/pdf",
+            size_bytes=len(content),
         )
         storage.save(document.storage_key, content, "application/pdf")
+        db_session.get(Project, project_id).storage_used_bytes += len(content)
         db_session.add(document)
         db_session.commit()
         return document
@@ -78,6 +82,24 @@ def max_document_size(monkeypatch):
     monkeypatch.setattr(document_service, "MAX_DOCUMENT_SIZE", limit)
     monkeypatch.setattr(document_routes, "MAX_DOCUMENT_SIZE", limit)
     return limit
+
+
+@pytest.fixture
+def project_storage_limit(monkeypatch):
+    """Lowers the per-project storage limit to 64 bytes for the test; returns the limit."""
+    limit = 64
+    monkeypatch.setattr(document_service, "PROJECT_STORAGE_LIMIT", limit)
+    monkeypatch.setattr(document_routes, "PROJECT_STORAGE_LIMIT", limit)
+    return limit
+
+
+@pytest.fixture
+def storage_used(get_project_info):
+    """Returns a project's storage_used_bytes, as GET /project/{id}/info reports it."""
+    def _storage_used(project_id):
+        return get_project_info(project_id).json()["storage_used_bytes"]
+
+    return _storage_used
 
 
 @pytest.fixture

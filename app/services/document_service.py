@@ -2,7 +2,7 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
-from app.config import MAX_DOCUMENT_SIZE
+from app.config import MAX_DOCUMENT_SIZE, PROJECT_STORAGE_LIMIT
 from app.models.document import Document
 from app.models.project_user import ProjectRole
 from app.models.user import User
@@ -45,6 +45,10 @@ class EmptyDocumentError(InvalidDocumentError):
 
 class TooManyFilesError(Exception):
     """More files were uploaded at once than MAX_FILES_PER_UPLOAD."""
+
+
+class ProjectStorageLimitError(Exception):
+    """Storing the upload would take the project over PROJECT_STORAGE_LIMIT."""
 
 
 MAX_FILES_PER_UPLOAD = 10
@@ -98,20 +102,31 @@ def upload_documents(
 ) -> list[Document]:
     """Add `files` (filename, contents) to the project as new documents (owner or participant).
 
-    All files are validated before anything is stored: one invalid file rejects the whole upload.
+    All files are validated before anything is stored: one invalid file rejects the whole upload, and so
+    does going over the project's storage limit.
     """
     project = project_service.get_project(session, user, project_id)
     if len(files) > MAX_FILES_PER_UPLOAD:
         raise TooManyFilesError(len(files))
     checked = [(*validate_file(filename, data), data) for filename, data in files]
+    upload_size = sum(len(data) for _, _, data in checked)
 
     documents = []
     try:
+        # Reserved in the same transaction that creates the documents, so a failed upload releases it.
+        if not project_repository.adjust_storage_used(session, project, upload_size, limit=PROJECT_STORAGE_LIMIT):
+            raise ProjectStorageLimitError(project.id)
         for name, content_type, data in checked:
             key = _new_storage_key(project.id)
             storage.save(key, data, content_type)
             documents.append(
-                Document(project_id=project.id, storage_key=key, original_filename=name, content_type=content_type)
+                Document(
+                    project_id=project.id,
+                    storage_key=key,
+                    original_filename=name,
+                    content_type=content_type,
+                    size_bytes=len(data),
+                )
             )
         return document_repository.create_many(session, documents)
     except Exception:
@@ -138,12 +153,20 @@ def replace_document(
     document = get_document(session, user, document_id)
     name, content_type = validate_file(filename, data)
 
+    # Only growing a document is checked against the limit; a document of unknown size (uploaded before
+    # sizes were recorded) counts as growing by its full new size until the Lambda corrects the total.
+    growth = len(data) - (document.size_bytes or 0)
+    limit = PROJECT_STORAGE_LIMIT if growth > 0 else None
+    if not project_repository.adjust_storage_used(session, document.project, growth, limit=limit):
+        session.rollback()
+        raise ProjectStorageLimitError(document.project_id)
+
     # Store the new file under a fresh key and only drop the old one once the database
     # points at the new file, so a failure never leaves the document without a file.
     old_key, new_key = document.storage_key, _new_storage_key(document.project_id)
-    storage.save(new_key, data, content_type)
     try:
-        document = document_repository.update(session, document, new_key, name, content_type)
+        storage.save(new_key, data, content_type)
+        document = document_repository.update(session, document, new_key, name, content_type, len(data))
     except Exception:
         session.rollback()
         storage.delete(new_key)
@@ -166,6 +189,8 @@ def delete_document(session: Session, storage: Storage, user: User, document_id:
         raise NotProjectOwnerError(document_id)
 
     storage_key = document.storage_key
+    # Committed together with the deletion below.
+    project_repository.adjust_storage_used(session, document.project, -(document.size_bytes or 0))
     document_repository.delete(session, document)
     # Removed after the commit: a failure here leaves an orphaned file, never a document without one.
     storage.delete(storage_key)
