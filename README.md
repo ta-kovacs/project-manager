@@ -55,13 +55,13 @@ docker compose up --build
 |---|---|---|
 | `DATABASE_URL` | `postgresql+psycopg://postgres:postgres@localhost:5433/mydb` | app and Alembic |
 | `STORAGE_BACKEND` | `local` | where document files are stored: `s3` (deployed environments) or `local` |
-| `S3_BUCKET` | – | the S3 bucket for document files (required when `STORAGE_BACKEND=s3`) |
+| `S3_BUCKET` | â€“ | the S3 bucket for document files (required when `STORAGE_BACKEND=s3`) |
 | `STORAGE_DIR` | `storage` | directory for document files with the `local` backend |
 | `MAX_DOCUMENT_SIZE` | `10485760` (10 MB) | largest accepted document upload, in bytes |
 | `PROJECT_STORAGE_LIMIT` | `104857600` (100 MB) | most document bytes one project may hold; uploads over it get `413` |
 | `INTERNAL_API_TOKEN` | unset (internal endpoints disabled) | shared secret of the storage-usage Lambda (production: SSM parameter `/project-manager/internal-api-token`) |
 | `MAIL_BACKEND` | `console` | how share emails are sent: `ses` (deployed environments) or `console` (logged) |
-| `MAIL_SENDER` | – | verified SES address share emails come from (required when `MAIL_BACKEND=ses`) |
+| `MAIL_SENDER` | â€“ | verified SES address share emails come from (required when `MAIL_BACKEND=ses`) |
 | `JWT_SECRET_KEY` | an insecure development value | signs access tokens from `POST /login` (production: SSM parameter `/project-manager/jwt-secret-key`) |
 | `ACCESS_TOKEN_MAX_AGE` | `3600` (1 hour) | how long an access token stays valid, in seconds |
 | `SHARE_SECRET_KEY` | an insecure development value | signs share-link tokens (production: SSM parameter `/project-manager/share-secret-key`) |

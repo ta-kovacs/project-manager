@@ -123,8 +123,6 @@ for the intermediate commits. CI runs everything on every pull request.
 
 ## Gotchas
 
-- `README.md` is Windows-1252, not UTF-8: edit it in a way that preserves the encoding, or the file
-  becomes garbled.
 - Secrets never go in the repository. Production reads them from SSM (`/project-manager/postgres-password`,
   `share-secret-key`, `jwt-secret-key`, `internal-api-token`). A new required SSM parameter must exist
   before the branch that needs it is deployed.
