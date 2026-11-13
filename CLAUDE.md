@@ -152,5 +152,8 @@ for the intermediate commits. CI runs everything on every pull request.
 - Secrets never go in the repository. Production reads them from SSM (`/project-manager/postgres-password`,
   `share-secret-key`, `jwt-secret-key`, `internal-api-token`). A new required SSM parameter must exist
   before the branch that needs it is deployed.
-- Deploys run from `main` only: the image goes to ECR, then the EC2 host runs `alembic upgrade head` and
-  restarts the app, then the Lambda's code is updated.
+- Deploys run from `main` only: the API and frontend images go to ECR, then the EC2 host runs
+  `alembic upgrade head` and restarts both, then the Lambda's code is updated. In production the frontend
+  container (nginx) owns port 80 and proxies the API; the API publishes no port. A new top-level static
+  file or directory in `frontend/` must also be copied in `frontend/Dockerfile`, and nothing in it may
+  share a path with an API route (nginx serves existing files first).

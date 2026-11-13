@@ -9,9 +9,11 @@ export class ApiError extends Error {
   }
 }
 
+// "" means the API is on the same origin as the frontend (behind the same nginx in production).
 function apiBaseUrl() {
   const configured = window.PM_CONFIG && window.PM_CONFIG.apiBaseUrl;
-  return (configured || "http://localhost:8000").replace(/\/+$/, "");
+  if (configured === undefined || configured === null) return "http://localhost:8000";
+  return (configured || window.location.origin).replace(/\/+$/, "");
 }
 
 // The signed-in user: { token, username, expiresAt }. Kept for this browser tab only.

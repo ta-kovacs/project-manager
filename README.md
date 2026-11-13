@@ -39,10 +39,13 @@ edit a project's details, upload, download and delete documents, invite users, e
 delete projects (the owner-only controls only show for the owner). It is plain HTML, CSS and JavaScript
 modules with no build step, so any static file server can serve it.
 
-- `config.js` says where the API is (`http://localhost:8000` by default); replace that file to point a
-  deployment elsewhere.
-- The frontend runs on its own origin, so the API must allow it in `CORS_ORIGINS` (by default
+- `config.js` says where the API is (`http://localhost:8000` by default; `""` means the frontend's own
+  origin); replace that file to point a deployment elsewhere.
+- Locally the frontend runs on its own origin, so the API must allow it in `CORS_ORIGINS` (by default
   `http://localhost:8080` and `http://127.0.0.1:8080`).
+- In production the frontend image (`frontend/Dockerfile`, `frontend/nginx.conf`) is the public entry
+  point on port 80: nginx serves the frontend and forwards every other request to the API, so both share
+  one origin and no CORS setup is needed. The API's URLs are unchanged (`/docs`, `/health`, `/projects`, ...).
 - The access token is kept in `sessionStorage`: closing the tab, the token expiring or a `401` signs the
   user out.
 
@@ -184,12 +187,13 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request and on pu
   and byte-compiles `lambdas/`
 - **test**: `tox -e py` against a throwaway PostgreSQL, on Python 3.12 and 3.14, each with the ORM and the
   SQL database backend, plus one run with (mocked) S3 storage
-- **docker**: builds the Docker image from the package's wheel
+- **docker**: builds the API image (from the package's wheel) and the frontend image
 - **migrations**: applies all Alembic migrations against a throwaway PostgreSQL service
-- **deploy** (pushes to `main`, or a manual run on `main`): pushes the image to Amazon ECR, then deploys it to a
-  single EC2 host through SSM Run Command: Postgres and the app run there with `docker-compose.prod.yaml`, and
-  `alembic upgrade head` runs before the app is (re)started; then, if the `STORAGE_USAGE_LAMBDA` variable is set,
-  it updates that Lambda function's code
+- **deploy** (pushes to `main`, or a manual run on `main`): pushes the API image and the frontend image
+  (same ECR repository, tagged `frontend-<sha>`) to Amazon ECR, then deploys them to a single EC2 host through
+  SSM Run Command: Postgres, the API and the frontend (nginx, on port 80, proxying the API) run there with
+  `docker-compose.prod.yaml`, and `alembic upgrade head` runs before they are (re)started; then, if the
+  `STORAGE_USAGE_LAMBDA` variable is set, it updates that Lambda function's code
 
 The deploy job is skipped until the `EC2_INSTANCE_ID` repository variable is set, and needs the `S3_BUCKET`
 (documents bucket) and `MAIL_SENDER` (verified SES sender) variables, plus the SSM parameters
