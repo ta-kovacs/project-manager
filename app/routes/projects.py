@@ -179,7 +179,8 @@ def join_project(
     """Join a project through a share link: the signed-in caller becomes a participant.
 
     Like every protected endpoint it needs the caller's access token (`Authorization: Bearer`), so a
-    client opening the link must sign in through POST /login first. Joining a project the caller already has access to returns their existing membership.
+    client opening the link must sign in through POST /login first. Joining a project the caller
+    already has access to returns their existing membership.
     """
     try:
         return project_service.join_project(session, user, token)

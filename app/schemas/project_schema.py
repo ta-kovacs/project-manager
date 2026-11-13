@@ -24,7 +24,9 @@ class DocumentRead(BaseModel):
     id: int
     original_filename: str
     content_type: str
-    size_bytes: int | None = Field(description="Size of the file in bytes; null if it was uploaded before sizes were recorded")
+    size_bytes: int | None = Field(
+        description="Size of the file in bytes; null if it was uploaded before sizes were recorded"
+    )
 
 
 class ProjectRead(BaseModel):

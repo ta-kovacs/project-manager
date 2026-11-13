@@ -111,7 +111,9 @@ def test_handler_reports_each_touched_project(s3_client, s3_bucket, sent_reports
         s3_event(s3_bucket, "projects/1/documents/a", "projects/2/documents/b"), None, s3=s3_client
     )
 
-    assert result == {"reported": [{"project_id": 1, "total_size_bytes": 100}, {"project_id": 2, "total_size_bytes": 7}]}
+    assert result == {
+        "reported": [{"project_id": 1, "total_size_bytes": 100}, {"project_id": 2, "total_size_bytes": 7}]
+    }
     assert [(r["url"], r["body"]["total_size_bytes"], r["token"]) for r in sent_reports] == [
         (f"{API}/internal/projects/1/storage-usage", 100, "lambda-token"),
         (f"{API}/internal/projects/2/storage-usage", 7, "lambda-token"),

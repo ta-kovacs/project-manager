@@ -93,7 +93,9 @@ def _bad_tokens():
         pytest.param(BearerAuth(_signed_token(**{**valid, "sub": "999999"})), id="unknown-user"),
         pytest.param(BearerAuth(_signed_token(**{**valid, "type": "share"})), id="wrong-token-type"),
         pytest.param(
-            BearerAuth(jwt.encode({k: v for k, v in valid.items() if k != "exp"}, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)),
+            BearerAuth(
+                jwt.encode({k: v for k, v in valid.items() if k != "exp"}, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+            ),
             id="no-expiry",
         ),
         pytest.param(BearerAuth(jwt.encode(valid, None, algorithm="none")), id="unsigned-token"),

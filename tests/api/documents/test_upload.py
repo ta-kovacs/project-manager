@@ -33,7 +33,7 @@ def test_upload_documents_are_listed_and_downloadable(
     uploaded = upload_documents(project["id"]).json()
 
     assert list_project_documents(project["id"]).json() == uploaded
-    for document, (_, content) in zip(uploaded, upload_files):
+    for document, (_, content) in zip(uploaded, upload_files, strict=True):
         assert download_document(document["id"]).content == content
 
 
@@ -60,7 +60,9 @@ def test_upload_documents_up_to_the_file_limit(upload_documents, project):
 @pytest.mark.parametrize(
     ("bad_file", "expected_status", "expected_detail"),
     [
-        pytest.param(("notes.txt", b"text"), 415, "Only PDF and DOCX documents are accepted: notes.txt", id="unsupported-type"),
+        pytest.param(
+            ("notes.txt", b"text"), 415, "Only PDF and DOCX documents are accepted: notes.txt", id="unsupported-type"
+        ),
         pytest.param(("big.pdf", b"x" * 17), 413, "Documents can be at most 16 bytes: big.pdf", id="too-large"),
         pytest.param(("empty.pdf", b""), 422, "File is empty: empty.pdf", id="empty"),
     ],
