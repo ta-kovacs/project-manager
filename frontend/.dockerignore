@@ -1,0 +1,4 @@
+# Only the files the Dockerfile copies are needed; config.js is generated for production.
+Dockerfile
+.dockerignore
+config.js
