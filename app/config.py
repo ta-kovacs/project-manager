@@ -5,6 +5,12 @@ DATABASE_URL = os.getenv(
     "postgresql+psycopg://postgres:postgres@localhost:5433/mydb",
 )
 
+# How the app reads and writes the database (see app/db/):
+#   "orm" - SQLAlchemy ORM models (app/db/orm)
+#   "sql" - hand-written SQL run with psycopg, no ORM (app/db/sql); PostgreSQL only
+# Both work on the same schema, created by Alembic or by app/db/sql/schema.sql.
+DATABASE_ACCESS = os.getenv("DATABASE_ACCESS", "orm")
+
 # Where document files are stored (see app/storage.py):
 #   "s3"    - an AWS S3 bucket; used in deployed environments
 #   "local" - a directory on disk; for local development and tests
