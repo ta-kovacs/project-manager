@@ -31,6 +31,18 @@ services:
       db:
         condition: service_healthy
 
+  # The browser app (frontend/), served as static files on http://localhost:8080. It calls the API on
+  # http://localhost:8000 (frontend/config.js), which allows that origin by default (CORS_ORIGINS).
+  frontend:
+    image: nginx:1.29-alpine
+    container_name: project-manager-frontend
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      - app
+
 volumes:
   postgres_data:
   documents:
