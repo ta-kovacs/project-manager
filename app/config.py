@@ -58,6 +58,14 @@ SHARE_SECRET_KEY = os.getenv("SHARE_SECRET_KEY", "dev-only-insecure-share-secret
 # How long a share link stays valid, in seconds (default 7 days).
 SHARE_LINK_MAX_AGE = int(os.getenv("SHARE_LINK_MAX_AGE", 7 * 24 * 60 * 60))
 
+# Browser origins allowed to call the API (CORS), comma-separated: where the frontend (frontend/) is
+# served from. The default is the address the frontend uses locally and in docker-compose.yaml.
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080").split(",")
+    if origin.strip()
+]
+
 # Public address of the API, used to build the links in share emails (e.g. https://pm.example.com).
 # When unset, the address the share request was made to is used.
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL")

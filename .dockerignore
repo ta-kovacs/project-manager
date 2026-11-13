@@ -10,3 +10,6 @@ storage/
 # tox environments and package builds
 .tox/
 dist/
+
+# served by its own container, not part of the API image
+frontend/
