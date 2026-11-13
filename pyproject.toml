@@ -1,4 +1,62 @@
-# Tool configuration. Dependencies are still listed in requirements*.txt.
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "project-manager"
+version = "0.1.0"
+description = "REST API for managing projects, their members and documents"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "takovacs" }]
+classifiers = [
+    "Framework :: FastAPI",
+    "Private :: Do Not Upload",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+# Pinned exactly: this is a deployed application, so every build (Docker image, CI, local) gets the
+# same versions. Update them deliberately, one change at a time.
+dependencies = [
+    "fastapi==0.162.0",
+    "uvicorn==0.54.0",
+    "sqlalchemy==2.1.6",
+    "psycopg[binary]==3.3.6",
+    "alembic==1.20.1",
+    "pydantic==2.14.2",
+    "pwdlib[argon2]==0.3.1",
+    "python-multipart==0.0.33",
+    "boto3==1.43.125",
+    "itsdangerous==2.2.0",
+    "email-validator==2.3.0",
+    "pyjwt==2.15.1",
+]
+
+# Development-only dependencies (PEP 735): never part of the package.
+# Install with `pip install -e . --group dev`.
+[dependency-groups]
+test = [
+    "pytest==8.4.2",
+    "httpx2==2.16.0",
+    "moto[s3]==5.2.5",
+]
+lint = ["ruff==0.17.5"]
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
+    "build==1.6.1",
+    "tox==4.67.13",
+]
+
+[tool.hatch.build.targets.wheel]
+# Only the application goes into the wheel. Migrations (alembic/) are shipped next to it in the Docker
+# image, and the Lambda (lambdas/) is deployed as its own zip.
+packages = ["app"]
+
+[tool.hatch.build.targets.sdist]
+include = ["app/", "tests/", "README.md", "pytest.ini"]
 
 [tool.ruff]
 target-version = "py312"
