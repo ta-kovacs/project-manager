@@ -14,10 +14,10 @@ A FastAPI backend for managing projects, their members and documents, backed by 
 # 1. Start PostgreSQL (exposed on localhost:5433)
 docker compose up -d db
 
-# 2. Install dependencies
+# 2. Install the app (editable) with the development tools; --group needs pip 25.1+
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -e . --group dev
 
 # 3. Apply database migrations
 alembic upgrade head
@@ -85,10 +85,39 @@ every S3 change, measures what the bucket really holds for that project, and rep
 `PUT /internal/projects/{id}/storage-usage` (authenticated with `INTERNAL_API_TOKEN`). The Lambda's
 configuration is described at the top of `lambdas/storage_usage/handler.py`.
 
+## Packaging
+
+The app is the Python package `project-manager` (import name `app`), defined in `pyproject.toml` and built
+with hatchling. `pyproject.toml` is the only list of dependencies:
+
+- `[project.dependencies]`: runtime dependencies, pinned exactly
+- `[dependency-groups]`: development tools that are never part of the package: `test`, `lint`, `tools`
+  (build, twine, tox) and `dev` (all of them)
+
+```bash
+python -m build          # dist/project_manager-<version>.tar.gz and -py3-none-any.whl
+```
+
+The wheel contains only `app/`. The Docker image builds it in a first stage and installs it in the runtime
+stage, next to the Alembic migrations. Bump `version` in `pyproject.toml` for a release; the running app
+reports it in the OpenAPI docs.
+
+## Tests and tox
+
+```bash
+pytest                       # the suite, from the source tree (in-memory SQLite, local storage)
+tox                          # tests on every installed Python version (3.12, 3.13, 3.14) + lint
+tox -e py314 -- tests/unit   # one version; arguments after -- go to pytest
+tox -e lint                  # ruff only
+```
+
+`TEST_DATABASE_URL` (a Postgres URL) and `TEST_STORAGE_BACKEND=s3` (a moto-mocked bucket) switch the suite to
+what CI uses.
+
 ## Linting and formatting
 
 [ruff](https://docs.astral.sh/ruff/) lints and formats the code; its configuration is in `pyproject.toml`.
-It is installed with the dev dependencies (`pip install -r requirements-dev.txt`):
+It is installed with the `lint` (or `dev`) dependency group:
 
 ```bash
 ruff check .            # lint (add --fix to apply safe fixes)
@@ -101,9 +130,11 @@ ruff format --check .   # what CI runs: fails if anything would be reformatted
 GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `main`:
 
 - **lint**: `ruff check` and `ruff format --check`
-- **build**: installs dependencies and byte-compiles `app/` and `lambdas/`
-- **test**: runs pytest against a throwaway PostgreSQL, once with local and once with (mocked) S3 storage
-- **docker**: builds the Docker image
+- **build**: builds the sdist and wheel, checks them with `twine check`, uploads them as the `dist` artifact,
+  and byte-compiles `lambdas/`
+- **test**: `tox -e py` against a throwaway PostgreSQL, on Python 3.12 and 3.14, each with local and (mocked)
+  S3 storage
+- **docker**: builds the Docker image from the package's wheel
 - **migrations**: applies all Alembic migrations against a throwaway PostgreSQL service
 - **deploy** (pushes to `main`, or a manual run on `main`): pushes the image to Amazon ECR, then deploys it to a
   single EC2 host through SSM Run Command: Postgres and the app run there with `docker-compose.prod.yaml`, and
