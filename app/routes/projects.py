@@ -3,10 +3,10 @@ from pydantic import EmailStr
 from sqlalchemy.orm import Session
 
 from app.config import PUBLIC_BASE_URL, SHARE_LINK_MAX_AGE
-from app.database import get_db
+from app.db import get_db
+from app.db.orm.models.user import User
 from app.dependencies import get_current_user
 from app.mailer import MailDeliveryError, Mailer, get_mailer
-from app.models.user import User
 from app.schemas.project_schema import MemberRead, ProjectCreate, ProjectRead, ProjectUpdate, ShareRead
 from app.security import ExpiredShareTokenError, InvalidShareTokenError
 from app.services import project_service

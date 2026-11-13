@@ -1,8 +1,8 @@
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.user import User
-from app.repositories import user_repository
+from app.db.orm import users as user_repository
+from app.db.orm.models.user import User
 from app.schemas.user_schema import UserCreate
 from app.security import hash_password, verify_dummy_password, verify_password
 

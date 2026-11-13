@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.models.project_user import ProjectUser
+from app.db.orm.models.project_user import ProjectUser
 
 
 @pytest.fixture

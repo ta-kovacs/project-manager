@@ -3,9 +3,9 @@ from datetime import datetime
 from sqlalchemy import case, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.project import Project
-from app.models.project_user import ProjectRole, ProjectUser
-from app.models.user import User
+from app.db.orm.models.project import Project
+from app.db.orm.models.project_user import ProjectRole, ProjectUser
+from app.db.orm.models.user import User
 
 
 def create_project(session: Session, name: str, description: str | None, owner: User) -> Project:

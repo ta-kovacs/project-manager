@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.models.user import User
+from app.db.orm.models.user import User
 from app.security import verify_password
 
 

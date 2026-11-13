@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.models.project import Project
+from app.db.orm.models.project import Project
 
 
 @pytest.mark.parametrize("caller", ["auth", "participant_auth"], ids=["owner", "participant"])

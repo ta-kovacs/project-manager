@@ -2,9 +2,9 @@
 
 import pytest
 
-from app.models.document import Document
-from app.models.project import Project
-from app.models.project_user import ProjectUser
+from app.db.orm.models.document import Document
+from app.db.orm.models.project import Project
+from app.db.orm.models.project_user import ProjectUser
 from app.storage import StoredFileNotFoundError
 
 

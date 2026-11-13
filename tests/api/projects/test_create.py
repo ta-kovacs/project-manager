@@ -2,8 +2,8 @@
 
 import pytest
 
-from app.models.project import Project
-from app.models.project_user import ProjectRole, ProjectUser
+from app.db.orm.models.project import Project
+from app.db.orm.models.project_user import ProjectRole, ProjectUser
 
 
 def test_create_project_returns_full_info(create_project, project_data, registered_user):

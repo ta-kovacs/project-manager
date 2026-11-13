@@ -10,11 +10,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-import app.models  # registers every model on Base.metadata
-from app.database import get_db
+import app.db.orm.models  # registers every model on Base.metadata
+from app.db import get_db
+from app.db.orm.models.base import Base
 from app.mailer import get_mailer
 from app.main import app
-from app.models.base import Base
 from app.storage import LocalStorage, S3Storage, get_storage
 
 # CI points this at a throwaway Postgres; locally the tests fall back to in-memory SQLite.

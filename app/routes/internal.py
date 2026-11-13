@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.db import get_db
 from app.dependencies import require_internal_token
 from app.schemas.project_schema import StorageUsageReport
 from app.services import project_service

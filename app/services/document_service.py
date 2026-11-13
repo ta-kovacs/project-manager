@@ -3,10 +3,11 @@ from uuid import uuid4
 from sqlalchemy.orm import Session
 
 from app.config import MAX_DOCUMENT_SIZE, PROJECT_STORAGE_LIMIT
-from app.models.document import Document
-from app.models.project_user import ProjectRole
-from app.models.user import User
-from app.repositories import document_repository, project_repository
+from app.db.orm import documents as document_repository
+from app.db.orm import projects as project_repository
+from app.db.orm.models.document import Document
+from app.db.orm.models.project_user import ProjectRole
+from app.db.orm.models.user import User
 from app.services import project_service
 from app.storage import Storage, StoredFileNotFoundError
 

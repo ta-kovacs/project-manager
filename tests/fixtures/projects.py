@@ -2,8 +2,8 @@
 
 import pytest
 
-from app.models.project_user import ProjectRole, ProjectUser
-from app.models.user import User
+from app.db.orm.models.project_user import ProjectRole, ProjectUser
+from app.db.orm.models.user import User
 from tests.helpers import payload
 
 

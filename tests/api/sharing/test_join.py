@@ -3,7 +3,7 @@
 import pytest
 
 import app.security as security
-from app.models.project_user import ProjectUser
+from app.db.orm.models.project_user import ProjectUser
 
 
 def test_share_link_from_email_grants_access(

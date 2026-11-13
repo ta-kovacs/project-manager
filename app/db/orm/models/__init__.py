@@ -1,0 +1,8 @@
+"""The ORM models. Importing this package registers all of them on Base.metadata."""
+
+from app.db.orm.models.document import Document
+from app.db.orm.models.project import Project
+from app.db.orm.models.project_user import ProjectRole, ProjectUser
+from app.db.orm.models.user import User
+
+__all__ = ["Document", "Project", "ProjectRole", "ProjectUser", "User"]

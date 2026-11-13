@@ -5,9 +5,9 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.config import INTERNAL_API_TOKEN
-from app.database import get_db
-from app.models.user import User
-from app.repositories import user_repository
+from app.db import get_db
+from app.db.orm import users as user_repository
+from app.db.orm.models.user import User
 from app.security import InvalidAccessTokenError, read_access_token
 
 # Every protected request sends `Authorization: Bearer <access token from POST /login>`.

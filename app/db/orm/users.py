@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.user import User
+from app.db.orm.models.user import User
 
 
 def get_by_id(session: Session, user_id: int) -> User | None:

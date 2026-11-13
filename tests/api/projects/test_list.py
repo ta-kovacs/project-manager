@@ -2,8 +2,8 @@
 
 import pytest
 
-from app.models.document import Document
-from app.models.project_user import ProjectRole, ProjectUser
+from app.db.orm.models.document import Document
+from app.db.orm.models.project_user import ProjectRole, ProjectUser
 
 
 @pytest.fixture

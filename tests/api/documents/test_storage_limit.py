@@ -5,7 +5,7 @@
 
 import pytest
 
-from app.models.project import Project
+from app.db.orm.models.project import Project
 
 LIMIT_DETAIL = "The project's documents can take up at most 64 bytes in total"
 

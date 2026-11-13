@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from sqlalchemy.orm import Session
 
 from app.config import MAX_DOCUMENT_SIZE, PROJECT_STORAGE_LIMIT
-from app.database import get_db
+from app.db import get_db
+from app.db.orm.models.user import User
 from app.dependencies import get_current_user
-from app.models.user import User
 from app.schemas.project_schema import DocumentRead
 from app.services import document_service, project_service
 from app.storage import Storage, get_storage

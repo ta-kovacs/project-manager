@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.config import ACCESS_TOKEN_MAX_AGE
-from app.database import get_db
+from app.db import get_db
 from app.schemas.user_schema import LoginRequest, Token, UserCreate, UserRead
 from app.security import create_access_token
 from app.services import user_service

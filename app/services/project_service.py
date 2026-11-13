@@ -5,11 +5,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import SHARE_LINK_MAX_AGE
+from app.db.orm import projects as project_repository
+from app.db.orm import users as user_repository
+from app.db.orm.models.project import Project
+from app.db.orm.models.project_user import ProjectRole, ProjectUser
+from app.db.orm.models.user import User
 from app.mailer import Mailer
-from app.models.project import Project
-from app.models.project_user import ProjectRole, ProjectUser
-from app.models.user import User
-from app.repositories import project_repository, user_repository
 from app.schemas.project_schema import ProjectCreate, ProjectUpdate
 from app.security import create_share_token, read_share_token
 from app.storage import Storage

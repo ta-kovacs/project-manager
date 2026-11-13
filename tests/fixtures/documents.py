@@ -2,8 +2,8 @@
 
 import pytest
 
-from app.models.document import Document
-from app.models.project import Project
+from app.db.orm.models.document import Document
+from app.db.orm.models.project import Project
 from app.routes import documents as document_routes
 from app.services import document_service
 from app.storage import S3Storage
