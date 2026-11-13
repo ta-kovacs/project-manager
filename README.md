@@ -24,9 +24,27 @@ alembic upgrade head
 
 # 4. Run the API
 uvicorn app.main:app --reload
+
+# 5. Serve the frontend (in a second terminal)
+python -m http.server 8080 -d frontend
 ```
 
-The API is then available at http://localhost:8000, with interactive docs at http://localhost:8000/docs.
+The API is then available at http://localhost:8000, with interactive docs at http://localhost:8000/docs,
+and the frontend at http://localhost:8080.
+
+## Frontend
+
+`frontend/` is a basic browser app for the API: log in or create an account, list and create projects,
+edit a project's details, upload, download and delete documents, invite users, email a join link and
+delete projects (the owner-only controls only show for the owner). It is plain HTML, CSS and JavaScript
+modules with no build step, so any static file server can serve it.
+
+- `config.js` says where the API is (`http://localhost:8000` by default); replace that file to point a
+  deployment elsewhere.
+- The frontend runs on its own origin, so the API must allow it in `CORS_ORIGINS` (by default
+  `http://localhost:8080` and `http://127.0.0.1:8080`).
+- The access token is kept in `sessionStorage`: closing the tab, the token expiring or a `401` signs the
+  user out.
 
 ## Authentication
 
@@ -43,7 +61,8 @@ participant) is checked against the database on every request, so access changes
 
 ## Docker
 
-Run the API and PostgreSQL together:
+Run PostgreSQL, the API (http://localhost:8000) and the frontend (http://localhost:8080, served by nginx)
+together:
 
 ```bash
 docker compose up --build
@@ -68,6 +87,7 @@ docker compose up --build
 | `SHARE_SECRET_KEY` | an insecure development value | signs share-link tokens (production: SSM parameter `/project-manager/share-secret-key`) |
 | `SHARE_LINK_MAX_AGE` | `604800` (7 days) | how long a share link stays valid, in seconds |
 | `PUBLIC_BASE_URL` | the address of the request | base of the links in share emails, e.g. `https://pm.example.com` |
+| `CORS_ORIGINS` | `http://localhost:8080,http://127.0.0.1:8080` | browser origins allowed to call the API (where the frontend is served), comma-separated |
 
 Inside Docker Compose the app connects to `db:5432` instead.
 
