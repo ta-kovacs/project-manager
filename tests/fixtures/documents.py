@@ -1,4 +1,5 @@
 """Project documents and their stored files; callers for the document endpoints."""
+
 import pytest
 
 from app.models.document import Document
@@ -21,6 +22,7 @@ def make_document(db_session, storage):
     Inserted directly, so tests of other endpoints don't depend on the upload endpoint; the project's
     storage usage is increased by the file's size, as an upload would.
     """
+
     def _make_document(project_id, *, filename="spec.pdf", content=b"%PDF-1.4 test document"):
         document = Document(
             project_id=project_id,
@@ -96,6 +98,7 @@ def project_storage_limit(monkeypatch):
 @pytest.fixture
 def storage_used(get_project_info):
     """Returns a project's storage_used_bytes, as GET /project/{id}/info reports it."""
+
     def _storage_used(project_id):
         return get_project_info(project_id).json()["storage_used_bytes"]
 
@@ -147,6 +150,7 @@ def upload_documents(client, auth, upload_files):
 @pytest.fixture
 def stored_files(storage):
     """Returns the keys of all files currently in `storage` (either backend)."""
+
     def _stored_files():
         if isinstance(storage, S3Storage):
             response = storage.client.list_objects_v2(Bucket=storage.bucket)

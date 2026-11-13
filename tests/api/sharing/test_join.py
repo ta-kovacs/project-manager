@@ -1,4 +1,5 @@
 """GET /join?token=<token>: join a project through a share link as a participant."""
+
 import pytest
 
 import app.security as security

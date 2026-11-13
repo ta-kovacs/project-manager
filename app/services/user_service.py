@@ -22,10 +22,10 @@ def create_user(session: Session, user_create: UserCreate) -> User:
             username=user_create.username,
             password_hash=hash_password(user_create.password),
         )
-    except IntegrityError:
+    except IntegrityError as error:
         # Another request registered the same username between the check and the insert.
         session.rollback()
-        raise UsernameTakenError(user_create.username)
+        raise UsernameTakenError(user_create.username) from error
 
 
 def authenticate(session: Session, username: str, password: str) -> User | None:

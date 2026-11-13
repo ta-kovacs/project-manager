@@ -23,7 +23,7 @@ def create_user(
     try:
         return user_service.create_user(session, user_create)
     except user_service.UsernameTakenError:
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="Username is already taken")
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Username is already taken") from None
 
 
 @router.post(

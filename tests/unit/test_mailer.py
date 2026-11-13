@@ -1,4 +1,5 @@
 """Sending emails: the SES backend, the console backend and choosing between them."""
+
 import logging
 
 import boto3
@@ -62,9 +63,11 @@ def test_console_mailer_logs_email(caplog):
 
 # --- choosing the backend (get_mailer) ------------------------------------------------------------
 
+
 @pytest.fixture
 def configure_mailer(monkeypatch):
     """Set the mail settings get_mailer reads, with a fresh cache before and after."""
+
     def _configure(backend, sender=None):
         monkeypatch.setattr(mailer_module, "MAIL_BACKEND", backend)
         monkeypatch.setattr(mailer_module, "MAIL_SENDER", sender)

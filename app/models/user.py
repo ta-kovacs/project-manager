@@ -1,7 +1,14 @@
-from sqlalchemy import String, Integer
+from typing import TYPE_CHECKING
+
+from sqlalchemy import Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+
+if TYPE_CHECKING:
+    from app.models.project import Project
+    from app.models.project_user import ProjectUser
+
 
 class User(Base):
     __tablename__ = "users"

@@ -85,10 +85,22 @@ every S3 change, measures what the bucket really holds for that project, and rep
 `PUT /internal/projects/{id}/storage-usage` (authenticated with `INTERNAL_API_TOKEN`). The Lambda's
 configuration is described at the top of `lambdas/storage_usage/handler.py`.
 
+## Linting and formatting
+
+[ruff](https://docs.astral.sh/ruff/) lints and formats the code; its configuration is in `pyproject.toml`.
+It is installed with the dev dependencies (`pip install -r requirements-dev.txt`):
+
+```bash
+ruff check .            # lint (add --fix to apply safe fixes)
+ruff format .           # format
+ruff format --check .   # what CI runs: fails if anything would be reformatted
+```
+
 ## CI/CD
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `main`:
 
+- **lint**: `ruff check` and `ruff format --check`
 - **build**: installs dependencies and byte-compiles `app/` and `lambdas/`
 - **test**: runs pytest against a throwaway PostgreSQL, once with local and once with (mocked) S3 storage
 - **docker**: builds the Docker image

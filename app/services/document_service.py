@@ -66,7 +66,7 @@ def validate_file(filename: str | None, data: bytes) -> tuple[str, str]:
     """Check an uploaded file; returns its cleaned filename and content type."""
     # Browsers may send a full client-side path; keep only the last part.
     name = (filename or "").replace("\\", "/").rsplit("/", 1)[-1].strip()[:255]
-    extension = name[name.rfind("."):].lower() if "." in name else ""
+    extension = name[name.rfind(".") :].lower() if "." in name else ""
     if extension not in ALLOWED_DOCUMENT_TYPES:
         raise UnsupportedDocumentTypeError(name)
     if len(data) > MAX_DOCUMENT_SIZE:
@@ -179,10 +179,7 @@ def delete_document(session: Session, storage: Storage, user: User, document_id:
     """Delete the document and its file; only the project's owner may do this
     (TASK.md: participants can modify, but not delete)."""
     document = document_repository.get(session, document_id)
-    membership = (
-        None if document is None
-        else project_repository.get_membership(session, document.project_id, user.id)
-    )
+    membership = None if document is None else project_repository.get_membership(session, document.project_id, user.id)
     if membership is None:
         raise DocumentNotFoundError(document_id)
     if membership.role != ProjectRole.OWNER:

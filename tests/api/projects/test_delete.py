@@ -1,4 +1,5 @@
 """DELETE /project/{id}: delete a project and its documents (owner only)."""
+
 import pytest
 
 from app.models.document import Document

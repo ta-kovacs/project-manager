@@ -1,4 +1,5 @@
 """PUT /internal/projects/{id}/storage-usage: the storage-usage Lambda reports a project's measured usage."""
+
 import pytest
 
 from app import dependencies

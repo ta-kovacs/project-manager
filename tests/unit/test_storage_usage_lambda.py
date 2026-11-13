@@ -1,4 +1,5 @@
 """The storage-usage Lambda (lambdas/storage_usage/handler.py), against a moto-mocked S3 bucket."""
+
 import json
 import urllib.error
 from datetime import datetime
@@ -32,6 +33,7 @@ def lambda_env(monkeypatch, s3_bucket):
 
 class _Reports(list):
     """The reports sent; each is answered with `status`."""
+
     status = 204
 
 
@@ -53,6 +55,7 @@ def put(s3_client, bucket, key, size):
 
 
 # --- reading events -----------------------------------------------------------------------------
+
 
 def test_projects_in_event_finds_each_project_once():
     event = s3_event(
@@ -81,6 +84,7 @@ def test_projects_in_event_ignores_records_without_s3_data():
 
 # --- measuring ----------------------------------------------------------------------------------
 
+
 def test_measure_project_sums_only_that_projects_documents(s3_client, s3_bucket):
     put(s3_client, s3_bucket, "projects/1/documents/a", 100)
     put(s3_client, s3_bucket, "projects/1/documents/b", 23)
@@ -103,6 +107,7 @@ def test_measure_project_reads_every_page(s3_client, s3_bucket):
 
 # --- reporting ----------------------------------------------------------------------------------
 
+
 def test_handler_reports_each_touched_project(s3_client, s3_bucket, sent_reports):
     put(s3_client, s3_bucket, "projects/1/documents/a", 100)
     put(s3_client, s3_bucket, "projects/2/documents/b", 7)
@@ -111,7 +116,9 @@ def test_handler_reports_each_touched_project(s3_client, s3_bucket, sent_reports
         s3_event(s3_bucket, "projects/1/documents/a", "projects/2/documents/b"), None, s3=s3_client
     )
 
-    assert result == {"reported": [{"project_id": 1, "total_size_bytes": 100}, {"project_id": 2, "total_size_bytes": 7}]}
+    assert result == {
+        "reported": [{"project_id": 1, "total_size_bytes": 100}, {"project_id": 2, "total_size_bytes": 7}]
+    }
     assert [(r["url"], r["body"]["total_size_bytes"], r["token"]) for r in sent_reports] == [
         (f"{API}/internal/projects/1/storage-usage", 100, "lambda-token"),
         (f"{API}/internal/projects/2/storage-usage", 7, "lambda-token"),
@@ -228,6 +235,7 @@ def test_token_is_read_from_ssm_when_not_given_directly(monkeypatch, s3_client):
 
 
 # --- with the real API --------------------------------------------------------------------------
+
 
 def test_lambda_corrects_the_apis_storage_usage(
     client, s3_client, s3_bucket, project, auth, internal_token, storage_used, db_session, monkeypatch, lambda_env

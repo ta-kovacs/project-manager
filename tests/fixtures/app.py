@@ -1,4 +1,5 @@
 """The app under test and what it runs on: database, document storage, mailer and the API client."""
+
 import os
 
 import boto3
@@ -9,7 +10,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-import app.models  # noqa: F401  (registers every model on Base.metadata)
+import app.models  # registers every model on Base.metadata
 from app.database import get_db
 from app.mailer import get_mailer
 from app.main import app
@@ -107,6 +108,7 @@ def mailer():
 @pytest.fixture
 def client(db_session, storage, mailer):
     """API client whose requests use the test database, storage and mailer."""
+
     def override_get_db():
         yield db_session
 

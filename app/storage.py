@@ -3,6 +3,7 @@
 Deployed environments use S3 (TASK.md: AWS S3 file storage); local disk is for development and
 tests. Routes only depend on `get_storage`, so they work the same with either backend.
 """
+
 from functools import lru_cache
 from pathlib import Path
 from typing import Protocol

@@ -4,10 +4,10 @@ from datetime import UTC, datetime
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.project import Project
-from app.models.project_user import ProjectRole, ProjectUser
 from app.config import SHARE_LINK_MAX_AGE
 from app.mailer import Mailer
+from app.models.project import Project
+from app.models.project_user import ProjectRole, ProjectUser
 from app.models.user import User
 from app.repositories import project_repository, user_repository
 from app.schemas.project_schema import ProjectCreate, ProjectUpdate
@@ -96,10 +96,10 @@ def invite_user(session: Session, user: User, project_id: int, username: str) ->
         raise AlreadyMemberError(username)
     try:
         return project_repository.add_member(session, project, invitee, ProjectRole.PARTICIPANT)
-    except IntegrityError:
+    except IntegrityError as error:
         # Invited by a concurrent request between the check and the insert.
         session.rollback()
-        raise AlreadyMemberError(username)
+        raise AlreadyMemberError(username) from error
 
 
 def share_project(

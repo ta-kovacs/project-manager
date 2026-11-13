@@ -1,4 +1,5 @@
 """Sharing projects: invitations, share emails and join links."""
+
 import re
 
 import pytest
@@ -35,6 +36,7 @@ def share_project(client, auth):
 @pytest.fixture
 def emailed_link(mailer):
     """Returns the join link from the most recent email the mailer recorded."""
+
     def _emailed_link():
         assert mailer.sent, "no email was sent"
         return re.search(r"https?://\S+/join\?token=\S+", mailer.sent[-1]["body"]).group(0)

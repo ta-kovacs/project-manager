@@ -2,6 +2,7 @@
 
 `project_storage_limit` lowers the limit to 64 bytes.
 """
+
 import pytest
 
 from app.models.project import Project

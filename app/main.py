@@ -1,9 +1,8 @@
 from fastapi import FastAPI
+
 from app.routes import auth, documents, internal, projects
 
-app = FastAPI(
-    title="Project Manager API"
-)
+app = FastAPI(title="Project Manager API")
 
 app.include_router(auth.router)
 app.include_router(projects.router)

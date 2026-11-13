@@ -2,6 +2,7 @@
 
 What the token contains and when it expires is covered in tests/unit/test_security.py.
 """
+
 import pytest
 
 from app.security import read_access_token

@@ -1,4 +1,5 @@
 """PUT /document/{id}: replace a document's file (owner or participant)."""
+
 import pytest
 
 from app.storage import StoredFileNotFoundError
@@ -10,6 +11,7 @@ DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 @pytest.fixture
 def assert_unchanged(download_document, document, document_content):
     """Checks that `document` still serves its original file."""
+
     def _assert_unchanged():
         response = download_document(document.id)
         assert response.status_code == 200
@@ -87,9 +89,7 @@ def test_replace_document_at_size_limit_is_accepted(replace_document, document, 
     assert response.status_code == 200
 
 
-def test_replace_document_over_size_limit_is_rejected(
-    replace_document, document, assert_unchanged, max_document_size
-):
+def test_replace_document_over_size_limit_is_rejected(replace_document, document, assert_unchanged, max_document_size):
     response = replace_document(document.id, content=b"x" * (max_document_size + 1))
 
     assert response.status_code == 413
