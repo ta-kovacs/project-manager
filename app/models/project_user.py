@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
-class ProjectRole(str, enum.Enum):
+class ProjectRole(enum.StrEnum):
     OWNER = "owner"
     PARTICIPANT = "participant"
 
