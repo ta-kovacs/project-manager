@@ -51,6 +51,12 @@ modules with no build step, so any static file server can serve it.
 
 ## Authentication
 
+`POST /auth` registers a user (`username`, `password`, `repeat_password`). Usernames are 3–250 characters
+and unique. Passwords must be 10–128 characters with a lowercase letter, an uppercase letter and a digit,
+and must not contain the username (ignoring case); a weak password gets `422` listing every rule it breaks.
+Passwords are stored only as Argon2 hashes. The rules apply when registering, so older accounts can still
+log in.
+
 `POST /login` exchanges a username and password for a JWT access token, valid for one hour:
 
 ```json
