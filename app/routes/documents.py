@@ -1,11 +1,11 @@
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
-from sqlalchemy.orm import Session
 
 from app.config import MAX_DOCUMENT_SIZE, PROJECT_STORAGE_LIMIT
-from app.db import get_db
-from app.db.orm.models.user import User
+from app.db.engine import get_db
+from app.db.interface import Database
+from app.db.records import User
 from app.dependencies import get_current_user
 from app.schemas.project_schema import DocumentRead
 from app.services import document_service, project_service
@@ -72,11 +72,11 @@ def _attachment(filename: str) -> str:
 def list_project_documents(
     project_id: int,
     user: User = Depends(get_current_user),
-    session: Session = Depends(get_db),
+    db: Database = Depends(get_db),
 ):
     """All of a project's documents, if the caller is its owner or a participant."""
     try:
-        return document_service.list_project_documents(session, user, project_id)
+        return document_service.list_project_documents(db, user, project_id)
     except project_service.ProjectNotFoundError:
         raise _project_not_found() from None
 
@@ -91,7 +91,7 @@ def upload_documents(
     project_id: int,
     files: list[UploadFile] = File(description="One or more PDF or DOCX files"),
     user: User = Depends(get_current_user),
-    session: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     storage: Storage = Depends(get_storage),
 ):
     """Upload documents to a project (owner or participant); returns the created documents.
@@ -100,7 +100,7 @@ def upload_documents(
     """
     uploads = [(file.filename, _read_upload(file)) for file in files]
     try:
-        return document_service.upload_documents(session, storage, user, project_id, uploads)
+        return document_service.upload_documents(db, storage, user, project_id, uploads)
     except project_service.ProjectNotFoundError:
         raise _project_not_found() from None
     except document_service.TooManyFilesError:
@@ -122,12 +122,12 @@ def upload_documents(
 def download_document(
     document_id: int,
     user: User = Depends(get_current_user),
-    session: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     storage: Storage = Depends(get_storage),
 ):
     """Download a document's file, if the caller is the owner or a participant of its project."""
     try:
-        document, data = document_service.download_document(session, storage, user, document_id)
+        document, data = document_service.download_document(db, storage, user, document_id)
     except document_service.DocumentNotFoundError:
         raise _document_not_found() from None
     except document_service.DocumentFileMissingError:
@@ -149,12 +149,12 @@ def replace_document(
     document_id: int,
     file: UploadFile = File(description="The new PDF or DOCX file"),
     user: User = Depends(get_current_user),
-    session: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     storage: Storage = Depends(get_storage),
 ):
     """Replace a document's file (owner or participant); returns the updated document."""
     try:
-        return document_service.replace_document(session, storage, user, document_id, file.filename, _read_upload(file))
+        return document_service.replace_document(db, storage, user, document_id, file.filename, _read_upload(file))
     except document_service.DocumentNotFoundError:
         raise _document_not_found() from None
     except document_service.InvalidDocumentError as error:
@@ -171,12 +171,12 @@ def replace_document(
 def delete_document(
     document_id: int,
     user: User = Depends(get_current_user),
-    session: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     storage: Storage = Depends(get_storage),
 ):
     """Delete a document and remove it from its project (project owner only)."""
     try:
-        document_service.delete_document(session, storage, user, document_id)
+        document_service.delete_document(db, storage, user, document_id)
     except document_service.DocumentNotFoundError:
         raise _document_not_found() from None
     except document_service.NotProjectOwnerError:

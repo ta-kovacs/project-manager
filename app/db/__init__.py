@@ -1,5 +1,10 @@
-"""Database access: the engine and session (engine.py) and the ORM models and repositories (orm/)."""
+"""Database access.
 
-from app.db.engine import get_db
+    engine.py     the engine and get_db, the dependency that gives each request a Database
+    interface.py  the Database protocol every backend implements (and ConflictError)
+    records.py    the plain records repositories return
+    orm/          backend built on SQLAlchemy ORM models
 
-__all__ = ["get_db"]
+Import from the modules; this package itself stays import-free so the backends can use records.py
+without import cycles.
+"""

@@ -1,9 +1,9 @@
 """Endpoints for our own AWS Lambda functions; they authenticate with INTERNAL_API_TOKEN, not a user's JWT."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 
-from app.db import get_db
+from app.db.engine import get_db
+from app.db.interface import Database
 from app.dependencies import require_internal_token
 from app.schemas.project_schema import StorageUsageReport
 from app.services import project_service
@@ -24,7 +24,7 @@ router = APIRouter(
 def report_storage_usage(
     project_id: int,
     report: StorageUsageReport,
-    session: Session = Depends(get_db),
+    db: Database = Depends(get_db),
 ):
     """Store the total size of a project's files as measured in S3 (called by the storage-usage Lambda).
 
@@ -32,6 +32,6 @@ def report_storage_usage(
     (PROJECT_STORAGE_LIMIT). A report older than the last one stored is accepted but ignored.
     """
     try:
-        project_service.record_measured_storage(session, project_id, report.total_size_bytes, report.measured_at)
+        project_service.record_measured_storage(db, project_id, report.total_size_bytes, report.measured_at)
     except project_service.ProjectNotFoundError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Project not found") from None

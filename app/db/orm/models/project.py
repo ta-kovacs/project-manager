@@ -5,7 +5,8 @@ from sqlalchemy import BigInteger, DateTime, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.orm.models.base import Base
-from app.db.orm.models.project_user import ProjectRole, ProjectUser
+from app.db.orm.models.project_user import ProjectUser
+from app.db.records import ProjectRole
 
 if TYPE_CHECKING:
     from app.db.orm.models.document import Document
@@ -58,7 +59,11 @@ class Project(Base):
         viewonly=True,
     )
 
-    documents: Mapped[list["Document"]] = relationship(back_populates="project", cascade=("all, delete-orphan"))
+    documents: Mapped[list["Document"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="Document.id",
+    )
 
     @property
     def owner(self) -> "User | None":

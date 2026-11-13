@@ -2,7 +2,7 @@ from typing import Annotated
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, EmailStr, Field, NonNegativeInt, StringConstraints
 
-from app.db.orm.models.project_user import ProjectRole
+from app.db.records import ProjectRole
 from app.schemas.user_schema import UserRead
 
 ProjectName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=250)]

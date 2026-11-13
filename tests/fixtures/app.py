@@ -11,7 +11,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.db.orm.models  # registers every model on Base.metadata
-from app.db import get_db
+from app.db.engine import get_db
+from app.db.orm import OrmDatabase
 from app.db.orm.models.base import Base
 from app.mailer import get_mailer
 from app.main import app
@@ -110,7 +111,7 @@ def client(db_session, storage, mailer):
     """API client whose requests use the test database, storage and mailer."""
 
     def override_get_db():
-        yield db_session
+        yield OrmDatabase(db_session)
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_storage] = lambda: storage
