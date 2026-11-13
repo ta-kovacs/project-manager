@@ -8,3 +8,7 @@ TASK.md
 .pytest_cache/
 test-results.xml
 storage/
+
+# tox environments and package builds
+.tox/
+dist/

@@ -1,6 +1,0 @@
-# Test/dev tools on top of the runtime deps. Not installed in the Docker image.
--r requirements.txt
-pytest==8.4.2
-httpx2==2.16.0
-moto[s3]==5.2.5
-ruff==0.17.5

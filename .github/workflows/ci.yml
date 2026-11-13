@@ -15,9 +15,19 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-      - run: pip install -r requirements.txt
-      - name: Compile app and Lambda functions
-        run: python -m compileall -q app/ lambdas/
+          cache-dependency-path: pyproject.toml
+      - run: pip install --group tools
+      - name: Build the package (sdist and wheel)
+        run: python -m build
+      - name: Check the package metadata
+        run: twine check --strict dist/*
+      # The Lambda isn't part of the package; it's deployed as its own zip.
+      - name: Compile the Lambda functions
+        run: python -m compileall -q lambdas/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
 
   lint:
     runs-on: ubuntu-latest
@@ -26,19 +36,21 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-      # Only ruff, at the version pinned in requirements-dev.txt; it needs none of the app's dependencies.
-      - run: pip install "$(grep '^ruff==' requirements-dev.txt)"
+      # Only ruff, from the lint dependency group; it needs none of the app's dependencies.
+      - run: pip install --group lint
       - name: Lint
         run: ruff check --output-format=github .
       - name: Check formatting
         run: ruff format --check --diff .
 
   test:
-    name: test (${{ matrix.storage }} storage)
+    name: test (Python ${{ matrix.python }}, ${{ matrix.storage }} storage)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
+        # The oldest supported Python and the one the Docker image runs.
+        python: ["3.12", "3.14"]
         # "s3" runs the whole suite against a moto-mocked S3 bucket (no AWS account needed)
         storage: [local, s3]
     services:
@@ -63,17 +75,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.14"
+          python-version: ${{ matrix.python }}
           cache: pip
-          cache-dependency-path: requirements*.txt
-      - run: pip install -r requirements-dev.txt
+          cache-dependency-path: pyproject.toml
+      - run: pip install --group tools
+      # `py` is tox's environment for the running interpreter: it installs the package and the test
+      # dependency group, then runs pytest with the arguments after `--`.
       - name: Run tests
-        run: pytest -v --junitxml=test-results.xml
+        run: tox -e py -- -v --junitxml=test-results.xml
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-${{ matrix.storage }}
+          name: test-results-py${{ matrix.python }}-${{ matrix.storage }}
           path: test-results.xml
 
   docker:
@@ -107,7 +121,8 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-      - run: pip install -r requirements.txt
+          cache-dependency-path: pyproject.toml
+      - run: pip install .
       - name: Apply migrations
         run: alembic upgrade head
 

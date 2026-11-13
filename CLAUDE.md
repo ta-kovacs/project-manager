@@ -12,7 +12,7 @@ the code deliberately differs from it, a comment says so (search for `TASK.md`).
 - AWS: S3 (document files), SES (share emails), SSM Parameter Store (secrets), Lambda (storage usage),
   ECR + EC2 (deployment)
 - Docker / Docker Compose, GitHub Actions
-- pytest (+ moto for AWS), ruff for linting and formatting
+- Packaged with `pyproject.toml` (hatchling); tox, pytest (+ moto for AWS), ruff for linting and formatting
 
 ## Layout
 
@@ -68,7 +68,7 @@ docker-compose.yaml (local), docker-compose.prod.yaml (EC2)
 Use the project virtualenv (`.venv`, Python 3.14); the system Python may be older.
 
 ```bash
-pip install -r requirements-dev.txt     # app + test + lint dependencies
+pip install -e . --group dev            # app (editable) + test, lint and build tools
 docker compose up -d db                 # Postgres on localhost:5433
 alembic upgrade head
 uvicorn app.main:app --reload           # http://localhost:8000/docs
@@ -76,7 +76,13 @@ uvicorn app.main:app --reload           # http://localhost:8000/docs
 pytest tests/api/documents              # tests for one area (see "Testing")
 pytest                                  # full suite
 ruff check . && ruff format --check .   # what CI's lint job runs; `ruff check --fix .` / `ruff format .` fix
+tox -e py314                            # the suite against the installed package, as CI runs it
+python -m build                         # sdist + wheel in dist/
 ```
+
+Dependencies live only in `pyproject.toml`: runtime ones in `[project.dependencies]`, pinned exactly, and
+development tools in `[dependency-groups]` (`test`, `lint`, `tools`, `dev`). The wheel contains only `app/`,
+so new code must live under `app/` (or be added to `[tool.hatch.build.targets.wheel]`) to reach the image.
 
 New migration: change the models, then `alembic revision --autogenerate -m "..."` and review the result.
 Never edit a migration that has been merged. Keep `import app.models` at the top of `alembic/env.py`:
@@ -123,8 +129,6 @@ for the intermediate commits. CI runs everything on every pull request.
 
 ## Gotchas
 
-- `README.md` is Windows-1252, not UTF-8: edit it in a way that preserves the encoding, or the file
-  becomes garbled.
 - Secrets never go in the repository. Production reads them from SSM (`/project-manager/postgres-password`,
   `share-secret-key`, `jwt-secret-key`, `internal-api-token`). A new required SSM parameter must exist
   before the branch that needs it is deployed.
