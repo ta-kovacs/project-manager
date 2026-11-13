@@ -1,4 +1,5 @@
 """POST /project/{id}/invite?user=<login>: grant a user participant access (owner only)."""
+
 import pytest
 
 from app.models.project_user import ProjectUser

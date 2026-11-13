@@ -1,4 +1,5 @@
 """Users and their access tokens: registering, logging in, and invalid credentials."""
+
 import time
 
 import jwt
@@ -21,6 +22,7 @@ def register(client, credentials):
 
     `repeat_password` follows `password` unless it is overridden itself.
     """
+
     def _register(*, exclude=(), **overrides):
         password = overrides.get("password", credentials["password"])
         base = {**credentials, "repeat_password": password}
@@ -32,6 +34,7 @@ def register(client, credentials):
 @pytest.fixture
 def login(client, credentials):
     """POST /login with valid credentials; pass fields to override them, `exclude` to leave some out."""
+
     def _login(*, exclude=(), **overrides):
         return client.post("/login", json=payload(credentials, overrides, exclude))
 
@@ -49,6 +52,7 @@ def registered_user(register):
 @pytest.fixture
 def bearer_auth(login):
     """Logs in through POST /login and returns a BearerAuth with the issued access token."""
+
     def _bearer_auth(username, password):
         response = login(username=username, password=password)
         assert response.status_code == 200, response.text
@@ -87,9 +91,7 @@ def _bad_tokens():
             BearerAuth(jwt.encode(valid, "some-other-key-that-is-at-least-32-bytes", algorithm=JWT_ALGORITHM)),
             id="wrong-signature",
         ),
-        pytest.param(
-            BearerAuth(_signed_token(**{**valid, "iat": now - 7200, "exp": now - 3600})), id="expired-token"
-        ),
+        pytest.param(BearerAuth(_signed_token(**{**valid, "iat": now - 7200, "exp": now - 3600})), id="expired-token"),
         pytest.param(BearerAuth(_signed_token(**{**valid, "sub": "999999"})), id="unknown-user"),
         pytest.param(BearerAuth(_signed_token(**{**valid, "type": "share"})), id="wrong-token-type"),
         pytest.param(

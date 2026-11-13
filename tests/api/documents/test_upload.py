@@ -1,4 +1,5 @@
 """POST /project/{id}/documents: upload one or more documents to a project (owner or participant)."""
+
 import pytest
 
 from app.services import document_service
@@ -10,6 +11,7 @@ DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 @pytest.fixture
 def assert_nothing_stored(list_project_documents, project, stored_files):
     """Checks that the project has no documents and storage holds no files."""
+
     def _assert_nothing_stored():
         assert list_project_documents(project["id"]).json() == []
         assert stored_files() == []
@@ -68,8 +70,14 @@ def test_upload_documents_up_to_the_file_limit(upload_documents, project):
     ],
 )
 def test_upload_documents_one_invalid_file_rejects_all(
-    upload_documents, project, upload_files, assert_nothing_stored, max_document_size,
-    bad_file, expected_status, expected_detail,
+    upload_documents,
+    project,
+    upload_files,
+    assert_nothing_stored,
+    max_document_size,
+    bad_file,
+    expected_status,
+    expected_detail,
 ):
     # The valid files fit the 16-byte limit, so only `bad_file` is wrong.
     response = upload_documents(project["id"], files=[*upload_files, bad_file])

@@ -1,4 +1,5 @@
 """The app under test and what it runs on: database, document storage, mailer and the API client."""
+
 import os
 
 import boto3
@@ -107,6 +108,7 @@ def mailer():
 @pytest.fixture
 def client(db_session, storage, mailer):
     """API client whose requests use the test database, storage and mailer."""
+
     def override_get_db():
         yield db_session
 

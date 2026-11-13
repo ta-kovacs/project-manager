@@ -1,4 +1,5 @@
 """GET /project/{id}/share?with=<email>: email a join link for the project (owner only)."""
+
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -16,6 +17,7 @@ def token_of(link):
 
 
 # --- the endpoint ---------------------------------------------------------------------------------
+
 
 def test_share_project_confirms_email(share_project, project):
     response = share_project(project["id"], EMAIL)
@@ -110,6 +112,7 @@ def test_share_project_requires_authentication(share_project, project, bad_auth,
 
 
 # --- share tokens ---------------------------------------------------------------------------------
+
 
 def test_share_token_round_trip():
     assert read_share_token(create_share_token(42, EMAIL)) == (42, EMAIL)

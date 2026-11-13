@@ -16,7 +16,6 @@ class Document(Base):
         primary_key=True,
     )
 
-
     storage_key: Mapped[str] = mapped_column(
         String(500),
         nullable=False,

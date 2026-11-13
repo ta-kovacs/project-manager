@@ -1,4 +1,5 @@
 """Projects and their members; callers for the /projects and /project/{id} endpoints."""
+
 import pytest
 
 from app.models.project_user import ProjectRole, ProjectUser

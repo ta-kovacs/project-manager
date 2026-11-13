@@ -154,9 +154,7 @@ def replace_document(
 ):
     """Replace a document's file (owner or participant); returns the updated document."""
     try:
-        return document_service.replace_document(
-            session, storage, user, document_id, file.filename, _read_upload(file)
-        )
+        return document_service.replace_document(session, storage, user, document_id, file.filename, _read_upload(file))
     except document_service.DocumentNotFoundError:
         raise _document_not_found() from None
     except document_service.InvalidDocumentError as error:

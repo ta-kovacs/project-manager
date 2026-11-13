@@ -70,6 +70,7 @@ def read_access_token(token: str) -> int:
 
 # --- share links ---------------------------------------------------------------------------------
 
+
 class InvalidShareTokenError(Exception):
     """The share token was not issued by this service, or has been tampered with."""
 

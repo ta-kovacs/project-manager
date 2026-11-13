@@ -1,4 +1,5 @@
 """POST /auth: create a user (username, password, repeat_password)."""
+
 import pytest
 
 from app.models.user import User

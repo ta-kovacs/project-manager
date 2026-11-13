@@ -1,4 +1,5 @@
 """GET /projects: every project the caller can access, with its full info."""
+
 import pytest
 
 from app.models.document import Document

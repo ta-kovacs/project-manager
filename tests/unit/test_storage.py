@@ -1,4 +1,5 @@
 """Document file storage: behaviour shared by both backends, then backend-specific details."""
+
 import pytest
 from botocore.exceptions import ClientError
 
@@ -6,6 +7,7 @@ import app.storage as storage_module
 from app.storage import LocalStorage, S3Storage, StoredFileNotFoundError
 
 # --- both backends (`any_storage` runs each test for local disk and for mocked S3) ---------------
+
 
 def test_save_then_load_returns_same_bytes(any_storage):
     any_storage.save("projects/1/documents/abc", b"%PDF-1.4 content", "application/pdf")
@@ -49,6 +51,7 @@ def test_files_are_kept_apart_by_key(any_storage):
 
 # --- local disk -----------------------------------------------------------------------------------
 
+
 @pytest.fixture
 def local_storage(tmp_path):
     return LocalStorage(tmp_path / "storage")
@@ -77,6 +80,7 @@ def test_local_keys_escaping_root_are_rejected(local_storage, operation, key):
 
 
 # --- S3 -------------------------------------------------------------------------------------------
+
 
 @pytest.fixture
 def s3_storage(s3_client, s3_bucket):
@@ -109,9 +113,11 @@ def test_s3_errors_other_than_missing_key_are_raised(s3_client):
 
 # --- choosing the backend (get_storage) -----------------------------------------------------------
 
+
 @pytest.fixture
 def configure_storage(monkeypatch, tmp_path):
     """Set the storage settings get_storage reads, with a fresh cache before and after."""
+
     def _configure(backend, bucket=None):
         monkeypatch.setattr(storage_module, "STORAGE_BACKEND", backend)
         monkeypatch.setattr(storage_module, "S3_BUCKET", bucket)

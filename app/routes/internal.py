@@ -1,4 +1,5 @@
 """Endpoints for our own AWS Lambda functions; they authenticate with INTERNAL_API_TOKEN, not a user's JWT."""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 

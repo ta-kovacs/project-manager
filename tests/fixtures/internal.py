@@ -1,4 +1,5 @@
 """Internal endpoints, called by our own Lambda functions with INTERNAL_API_TOKEN."""
+
 import pytest
 
 from app import dependencies

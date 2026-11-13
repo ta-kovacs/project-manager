@@ -1,4 +1,5 @@
 """GET /project/{id}/info: a project's full info, if the caller has access."""
+
 import pytest
 
 

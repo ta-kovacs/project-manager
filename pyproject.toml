@@ -31,4 +31,5 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.File", "fastapi.Query"]
 "alembic/versions/*" = ["E501", "I", "UP", "W291"]
 
 [tool.ruff.format]
-exclude = ["alembic/versions/*"]
+# Python only (newer ruff versions also format Markdown); migrations are kept as generated.
+exclude = ["*.md", "alembic/versions/*"]

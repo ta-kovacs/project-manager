@@ -1,4 +1,5 @@
 """PUT /project/{id}/info: replace a project's name and description (owner or participant)."""
+
 import pytest
 
 from app.models.project import Project
@@ -34,9 +35,7 @@ def test_update_project_info_omitted_description_is_cleared(update_project_info,
         pytest.param({"description": "x" * 5001}, id="description-too-long"),
     ],
 )
-def test_update_project_info_invalid_data_is_rejected(
-    update_project_info, get_project_info, project, overrides
-):
+def test_update_project_info_invalid_data_is_rejected(update_project_info, get_project_info, project, overrides):
     response = update_project_info(project["id"], **overrides)
 
     assert response.status_code == 422

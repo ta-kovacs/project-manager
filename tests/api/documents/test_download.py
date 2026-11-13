@@ -1,4 +1,5 @@
 """GET /document/{id}: download a document's file, if the caller has access to its project."""
+
 import pytest
 
 

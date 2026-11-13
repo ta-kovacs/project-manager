@@ -3,6 +3,7 @@
 Deployed environments use AWS SES; locally emails are written to the log. Routes only depend on
 `get_mailer`, so they work the same with either backend.
 """
+
 import logging
 from functools import lru_cache
 from typing import Protocol

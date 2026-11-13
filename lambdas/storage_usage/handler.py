@@ -18,6 +18,7 @@ Environment variables:
   INTERNAL_API_TOKEN             the token itself; used instead of the parameter when set (tests, local runs)
   DOCUMENTS_BUCKET               the documents bucket; only needed for `recompute_all`
 """
+
 import json
 import logging
 import os

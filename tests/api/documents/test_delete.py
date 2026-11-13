@@ -1,4 +1,5 @@
 """DELETE /document/{id}: delete a document and remove it from its project (project owner only)."""
+
 import pytest
 
 from app.storage import StoredFileNotFoundError
@@ -7,6 +8,7 @@ from app.storage import StoredFileNotFoundError
 @pytest.fixture
 def assert_still_exists(download_document, get_project_info, document, document_content):
     """Checks that `document` is still listed on its project and still serves its file."""
+
     def _assert_still_exists():
         assert download_document(document.id).content == document_content
         documents = get_project_info(document.project_id).json()["documents"]
@@ -45,9 +47,7 @@ def test_delete_document_twice_is_not_found(delete_document, document):
     assert delete_document(document.id).status_code == 404
 
 
-def test_delete_document_by_participant_is_forbidden(
-    delete_document, document, participant_auth, assert_still_exists
-):
+def test_delete_document_by_participant_is_forbidden(delete_document, document, participant_auth, assert_still_exists):
     response = delete_document(document.id, auth=participant_auth)
 
     assert response.status_code == 403

@@ -31,6 +31,7 @@ class DocumentRead(BaseModel):
 
 class ProjectRead(BaseModel):
     """A project's full info: details, owner and documents."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -43,6 +44,7 @@ class ProjectRead(BaseModel):
 
 class MemberRead(BaseModel):
     """A user's access to a project."""
+
     model_config = ConfigDict(from_attributes=True)
 
     project_id: int

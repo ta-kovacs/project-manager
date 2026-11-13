@@ -3,6 +3,7 @@
 The per-endpoint tests check authentication for the endpoints that exist today; this one also fails
 for a new endpoint that forgets `Depends(get_current_user)`.
 """
+
 import re
 
 import pytest
@@ -21,9 +22,7 @@ def _endpoints():
     # Read from the OpenAPI schema: FastAPI keeps included routers' routes in private structures.
     # Endpoints registered with include_in_schema=False would not be listed here.
     return sorted(
-        (method.upper(), path)
-        for path, operations in app.openapi()["paths"].items()
-        for method in operations
+        (method.upper(), path) for path, operations in app.openapi()["paths"].items() for method in operations
     )
 
 

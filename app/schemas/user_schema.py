@@ -33,4 +33,3 @@ class Token(BaseModel):
     access_token: str
     token_type: Literal["bearer"] = "bearer"
     expires_in: int = Field(description="Seconds until the access token expires")
-
