@@ -62,7 +62,9 @@ async function errorMessage(response) {
     return detail
       .map((problem) => {
         const field = (problem.loc || []).filter((part) => part !== "body" && part !== "query").join(".");
-        return field ? `${field}: ${problem.msg}` : problem.msg;
+        // Checks written in the API's models come with pydantic's "Value error, " prefix.
+        const text = String(problem.msg || "").replace(/^Value error, /, "");
+        return field ? `${field}: ${text}` : text;
       })
       .join("; ");
   }
