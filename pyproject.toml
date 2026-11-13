@@ -35,7 +35,7 @@ dependencies = [
 ]
 
 # Development-only dependencies (PEP 735): never part of the package.
-# Install with `pip install -e . --group dev`.
+# Install everything with `pip install -e . --group dev`; CI installs single groups.
 [dependency-groups]
 test = [
     "pytest==8.4.2",
@@ -43,11 +43,15 @@ test = [
     "moto[s3]==5.2.5",
 ]
 lint = ["ruff==0.17.5"]
+tools = [
+    "build==1.6.1",
+    "twine==7.0.0",
+    "tox==4.67.13",
+]
 dev = [
     { include-group = "test" },
     { include-group = "lint" },
-    "build==1.6.1",
-    "tox==4.67.13",
+    { include-group = "tools" },
 ]
 
 [tool.hatch.build.targets.wheel]
