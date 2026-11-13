@@ -2,12 +2,11 @@ import hmac
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.orm import Session
 
 from app.config import INTERNAL_API_TOKEN
-from app.database import get_db
-from app.models.user import User
-from app.repositories import user_repository
+from app.db.engine import get_db
+from app.db.interface import Database
+from app.db.records import User
 from app.security import InvalidAccessTokenError, read_access_token
 
 # Every protected request sends `Authorization: Bearer <access token from POST /login>`.
@@ -25,7 +24,7 @@ def _unauthorized() -> HTTPException:
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_auth),
-    session: Session = Depends(get_db),
+    db: Database = Depends(get_db),
 ) -> User:
     """The user the access token was issued to.
 
@@ -38,7 +37,7 @@ def get_current_user(
         user_id = read_access_token(credentials.credentials)
     except InvalidAccessTokenError:
         raise _unauthorized() from None
-    user = user_repository.get_by_id(session, user_id)
+    user = db.users.get_by_id(user_id)
     if user is None:
         raise _unauthorized()
     return user

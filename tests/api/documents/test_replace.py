@@ -43,12 +43,12 @@ def test_replace_document_serves_new_file(replace_document, download_document, d
     assert 'filename="report.docx"' in response.headers["Content-Disposition"]
 
 
-def test_replace_document_removes_old_file(replace_document, document, storage):
+def test_replace_document_removes_old_file(replace_document, document, storage, db):
     old_key = document.storage_key
 
     replace_document(document.id)
 
-    assert document.storage_key != old_key
+    assert db.documents.get(document.id).storage_key != old_key
     with pytest.raises(StoredFileNotFoundError):
         storage.load(old_key)
 

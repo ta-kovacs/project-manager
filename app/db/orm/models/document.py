@@ -3,10 +3,10 @@ from typing import TYPE_CHECKING
 from sqlalchemy import BigInteger, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base
+from app.db.orm.models.base import Base
 
 if TYPE_CHECKING:
-    from app.models.project import Project
+    from app.db.orm.models.project import Project
 
 
 class Document(Base):

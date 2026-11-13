@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import EmailStr
-from sqlalchemy.orm import Session
 
 from app.config import PUBLIC_BASE_URL, SHARE_LINK_MAX_AGE
-from app.database import get_db
+from app.db.engine import get_db
+from app.db.interface import Database
+from app.db.records import User
 from app.dependencies import get_current_user
 from app.mailer import MailDeliveryError, Mailer, get_mailer
-from app.models.user import User
 from app.schemas.project_schema import MemberRead, ProjectCreate, ProjectRead, ProjectUpdate, ShareRead
 from app.security import ExpiredShareTokenError, InvalidShareTokenError
 from app.services import project_service
@@ -22,19 +22,19 @@ router = APIRouter(
 def create_project(
     project_create: ProjectCreate,
     user: User = Depends(get_current_user),
-    session: Session = Depends(get_db),
+    db: Database = Depends(get_db),
 ):
     """Create a project; the caller becomes its owner."""
-    return project_service.create_project(session, user, project_create)
+    return project_service.create_project(db, user, project_create)
 
 
 @router.get("/projects", response_model=list[ProjectRead])
 def list_projects(
     user: User = Depends(get_current_user),
-    session: Session = Depends(get_db),
+    db: Database = Depends(get_db),
 ):
     """All projects the caller owns or participates in, with their full info."""
-    return project_service.list_projects(session, user)
+    return project_service.list_projects(db, user)
 
 
 def _project_not_found() -> HTTPException:
@@ -49,11 +49,11 @@ def _project_not_found() -> HTTPException:
 def get_project_info(
     project_id: int,
     user: User = Depends(get_current_user),
-    session: Session = Depends(get_db),
+    db: Database = Depends(get_db),
 ):
     """A project's full info, if the caller is its owner or a participant."""
     try:
-        return project_service.get_project(session, user, project_id)
+        return project_service.get_project(db, user, project_id)
     except project_service.ProjectNotFoundError:
         raise _project_not_found() from None
 
@@ -67,11 +67,11 @@ def update_project_info(
     project_id: int,
     project_update: ProjectUpdate,
     user: User = Depends(get_current_user),
-    session: Session = Depends(get_db),
+    db: Database = Depends(get_db),
 ):
     """Replace a project's name and description (owner or participant); returns the updated info."""
     try:
-        return project_service.update_project(session, user, project_id, project_update)
+        return project_service.update_project(db, user, project_id, project_update)
     except project_service.ProjectNotFoundError:
         raise _project_not_found() from None
 
@@ -87,12 +87,12 @@ def update_project_info(
 def delete_project(
     project_id: int,
     user: User = Depends(get_current_user),
-    session: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     storage: Storage = Depends(get_storage),
 ):
     """Delete a project and its documents, including their stored files (owner only)."""
     try:
-        project_service.delete_project(session, storage, user, project_id)
+        project_service.delete_project(db, storage, user, project_id)
     except project_service.ProjectNotFoundError:
         raise _project_not_found() from None
     except project_service.NotProjectOwnerError:
@@ -113,11 +113,11 @@ def invite_user(
     project_id: int,
     username: str = Query(alias="user", min_length=1, description="Login of the user to invite"),
     user: User = Depends(get_current_user),
-    session: Session = Depends(get_db),
+    db: Database = Depends(get_db),
 ):
     """Grant a user participant access to a project (owner only)."""
     try:
-        return project_service.invite_user(session, user, project_id, username)
+        return project_service.invite_user(db, user, project_id, username)
     except project_service.ProjectNotFoundError:
         raise _project_not_found() from None
     except project_service.NotProjectOwnerError:
@@ -142,7 +142,7 @@ def share_project(
     request: Request,
     email: EmailStr = Query(alias="with", description="Email address to send the join link to"),
     user: User = Depends(get_current_user),
-    session: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     mailer: Mailer = Depends(get_mailer),
 ):
     """Email a GET /join link that gives whoever opens it participant access (owner only)."""
@@ -152,7 +152,7 @@ def share_project(
         return f"{base_url}/join?token={token}"
 
     try:
-        project_service.share_project(session, mailer, user, project_id, email, join_url)
+        project_service.share_project(db, mailer, user, project_id, email, join_url)
     except project_service.ProjectNotFoundError:
         raise _project_not_found() from None
     except project_service.NotProjectOwnerError:
@@ -174,7 +174,7 @@ def share_project(
 def join_project(
     token: str = Query(description="Token from a share link (GET /project/{id}/share)"),
     user: User = Depends(get_current_user),
-    session: Session = Depends(get_db),
+    db: Database = Depends(get_db),
 ):
     """Join a project through a share link: the signed-in caller becomes a participant.
 
@@ -183,7 +183,7 @@ def join_project(
     already has access to returns their existing membership.
     """
     try:
-        return project_service.join_project(session, user, token)
+        return project_service.join_project(db, user, token)
     except InvalidShareTokenError:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid share link") from None
     except ExpiredShareTokenError:

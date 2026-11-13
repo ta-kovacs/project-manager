@@ -2,8 +2,7 @@
 
 import pytest
 
-from app.models.project_user import ProjectRole, ProjectUser
-from app.models.user import User
+from app.db.records import ProjectRole
 from tests.helpers import payload
 
 
@@ -45,14 +44,14 @@ def project(create_project):
 
 
 @pytest.fixture
-def participant_auth(project, other_auth, db_session):
+def participant_auth(project, other_auth, db):
     """Credentials of the second user, added to `project` as a participant.
 
     The membership is inserted directly, so tests of other endpoints don't depend on the invite endpoint.
     """
-    other_user = db_session.query(User).filter_by(username=other_auth.username).one()
-    db_session.add(ProjectUser(project_id=project["id"], user_id=other_user.id, role=ProjectRole.PARTICIPANT))
-    db_session.commit()
+    other_user = db.users.get_by_username(other_auth.username)
+    db.projects.add_member(project["id"], other_user.id, ProjectRole.PARTICIPANT)
+    db.commit()
     return other_auth
 
 

@@ -1,12 +1,8 @@
 from uuid import uuid4
 
-from sqlalchemy.orm import Session
-
 from app.config import MAX_DOCUMENT_SIZE, PROJECT_STORAGE_LIMIT
-from app.models.document import Document
-from app.models.project_user import ProjectRole
-from app.models.user import User
-from app.repositories import document_repository, project_repository
+from app.db.interface import Database
+from app.db.records import Document, NewDocument, ProjectRole, User
 from app.services import project_service
 from app.storage import Storage, StoredFileNotFoundError
 
@@ -80,66 +76,60 @@ def _new_storage_key(project_id: int) -> str:
     return f"projects/{project_id}/documents/{uuid4().hex}"
 
 
-def get_document(session: Session, user: User, document_id: int) -> Document:
+def get_document(db: Database, user: User, document_id: int) -> Document:
     """The document, if `user` is the owner or a participant of its project."""
-    document = document_repository.get(session, document_id)
-    if document is None or project_repository.get_membership(session, document.project_id, user.id) is None:
+    document = db.documents.get(document_id)
+    if document is None or db.projects.get_membership(document.project_id, user.id) is None:
         raise DocumentNotFoundError(document_id)
     return document
 
 
-def list_project_documents(session: Session, user: User, project_id: int) -> list[Document]:
+def list_project_documents(db: Database, user: User, project_id: int) -> list[Document]:
     """The project's documents, if `user` is its owner or a participant.
 
     Raises project_service.ProjectNotFoundError otherwise.
     """
-    project = project_service.get_project(session, user, project_id)
-    return document_repository.list_for_project(session, project.id)
+    project = project_service.get_project(db, user, project_id)
+    return db.documents.list_for_project(project.id)
 
 
 def upload_documents(
-    session: Session, storage: Storage, user: User, project_id: int, files: list[tuple[str | None, bytes]]
+    db: Database, storage: Storage, user: User, project_id: int, files: list[tuple[str | None, bytes]]
 ) -> list[Document]:
     """Add `files` (filename, contents) to the project as new documents (owner or participant).
 
     All files are validated before anything is stored: one invalid file rejects the whole upload, and so
     does going over the project's storage limit.
     """
-    project = project_service.get_project(session, user, project_id)
+    project = project_service.get_project(db, user, project_id)
     if len(files) > MAX_FILES_PER_UPLOAD:
         raise TooManyFilesError(len(files))
     checked = [(*validate_file(filename, data), data) for filename, data in files]
     upload_size = sum(len(data) for _, _, data in checked)
 
-    documents = []
+    stored: list[NewDocument] = []
     try:
         # Reserved in the same transaction that creates the documents, so a failed upload releases it.
-        if not project_repository.adjust_storage_used(session, project, upload_size, limit=PROJECT_STORAGE_LIMIT):
+        if not db.projects.adjust_storage_used(project.id, upload_size, limit=PROJECT_STORAGE_LIMIT):
             raise ProjectStorageLimitError(project.id)
         for name, content_type, data in checked:
             key = _new_storage_key(project.id)
             storage.save(key, data, content_type)
-            documents.append(
-                Document(
-                    project_id=project.id,
-                    storage_key=key,
-                    original_filename=name,
-                    content_type=content_type,
-                    size_bytes=len(data),
-                )
-            )
-        return document_repository.create_many(session, documents)
+            stored.append(NewDocument(key, name, content_type, len(data)))
+        documents = db.documents.create_many(project.id, stored)
+        db.commit()
     except Exception:
         # Don't leave files behind for documents that were never created.
-        session.rollback()
-        for document in documents:
-            storage.delete(document.storage_key)
+        db.rollback()
+        for new in stored:
+            storage.delete(new.storage_key)
         raise
+    return documents
 
 
-def download_document(session: Session, storage: Storage, user: User, document_id: int) -> tuple[Document, bytes]:
+def download_document(db: Database, storage: Storage, user: User, document_id: int) -> tuple[Document, bytes]:
     """The document and its file contents."""
-    document = get_document(session, user, document_id)
+    document = get_document(db, user, document_id)
     try:
         return document, storage.load(document.storage_key)
     except StoredFileNotFoundError:
@@ -147,18 +137,18 @@ def download_document(session: Session, storage: Storage, user: User, document_i
 
 
 def replace_document(
-    session: Session, storage: Storage, user: User, document_id: int, filename: str | None, data: bytes
+    db: Database, storage: Storage, user: User, document_id: int, filename: str | None, data: bytes
 ) -> Document:
     """Replace the document's file (owner or participant); returns the updated document."""
-    document = get_document(session, user, document_id)
+    document = get_document(db, user, document_id)
     name, content_type = validate_file(filename, data)
 
     # Only growing a document is checked against the limit; a document of unknown size (uploaded before
     # sizes were recorded) counts as growing by its full new size until the Lambda corrects the total.
     growth = len(data) - (document.size_bytes or 0)
     limit = PROJECT_STORAGE_LIMIT if growth > 0 else None
-    if not project_repository.adjust_storage_used(session, document.project, growth, limit=limit):
-        session.rollback()
+    if not db.projects.adjust_storage_used(document.project_id, growth, limit=limit):
+        db.rollback()
         raise ProjectStorageLimitError(document.project_id)
 
     # Store the new file under a fresh key and only drop the old one once the database
@@ -166,28 +156,28 @@ def replace_document(
     old_key, new_key = document.storage_key, _new_storage_key(document.project_id)
     try:
         storage.save(new_key, data, content_type)
-        document = document_repository.update(session, document, new_key, name, content_type, len(data))
+        updated = db.documents.update(document.id, new_key, name, content_type, len(data))
+        db.commit()
     except Exception:
-        session.rollback()
+        db.rollback()
         storage.delete(new_key)
         raise
     storage.delete(old_key)
-    return document
+    return updated
 
 
-def delete_document(session: Session, storage: Storage, user: User, document_id: int) -> None:
+def delete_document(db: Database, storage: Storage, user: User, document_id: int) -> None:
     """Delete the document and its file; only the project's owner may do this
     (TASK.md: participants can modify, but not delete)."""
-    document = document_repository.get(session, document_id)
-    membership = None if document is None else project_repository.get_membership(session, document.project_id, user.id)
+    document = db.documents.get(document_id)
+    membership = None if document is None else db.projects.get_membership(document.project_id, user.id)
     if membership is None:
         raise DocumentNotFoundError(document_id)
     if membership.role != ProjectRole.OWNER:
         raise NotProjectOwnerError(document_id)
 
-    storage_key = document.storage_key
-    # Committed together with the deletion below.
-    project_repository.adjust_storage_used(session, document.project, -(document.size_bytes or 0))
-    document_repository.delete(session, document)
+    db.projects.adjust_storage_used(document.project_id, -(document.size_bytes or 0))
+    db.documents.delete(document.id)
+    db.commit()
     # Removed after the commit: a failure here leaves an orphaned file, never a document without one.
-    storage.delete(storage_key)
+    storage.delete(document.storage_key)

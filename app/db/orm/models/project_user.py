@@ -1,19 +1,14 @@
-import enum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Enum, ForeignKey, Index, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base
+from app.db.orm.models.base import Base
+from app.db.records import ProjectRole
 
 if TYPE_CHECKING:
-    from app.models.project import Project
-    from app.models.user import User
-
-
-class ProjectRole(enum.StrEnum):
-    OWNER = "owner"
-    PARTICIPANT = "participant"
+    from app.db.orm.models.project import Project
+    from app.db.orm.models.user import User
 
 
 class ProjectUser(Base):

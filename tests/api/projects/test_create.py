@@ -2,8 +2,7 @@
 
 import pytest
 
-from app.models.project import Project
-from app.models.project_user import ProjectRole, ProjectUser
+from app.db.records import ProjectRole
 
 
 def test_create_project_returns_full_info(create_project, project_data, registered_user):
@@ -20,10 +19,10 @@ def test_create_project_returns_full_info(create_project, project_data, register
     }
 
 
-def test_create_project_makes_caller_owner(create_project, registered_user, db_session):
+def test_create_project_makes_caller_owner(create_project, registered_user, db):
     project_id = create_project().json()["id"]
 
-    membership = db_session.get(ProjectUser, (project_id, registered_user["id"]))
+    membership = db.projects.get_membership(project_id, registered_user["id"])
     assert membership.role == ProjectRole.OWNER
 
 
@@ -50,11 +49,11 @@ def test_create_project_strips_whitespace(create_project):
         pytest.param({"description": "x" * 5001}, id="description-too-long"),
     ],
 )
-def test_create_project_invalid_data_is_rejected(create_project, db_session, overrides):
+def test_create_project_invalid_data_is_rejected(create_project, count_rows, overrides):
     response = create_project(**overrides)
 
     assert response.status_code == 422
-    assert db_session.query(Project).count() == 0
+    assert count_rows("projects") == 0
 
 
 def test_create_project_missing_name_is_rejected(create_project):
@@ -64,9 +63,9 @@ def test_create_project_missing_name_is_rejected(create_project):
     assert response.json()["detail"][0]["loc"] == ["body", "name"]
 
 
-def test_create_project_requires_authentication(create_project, bad_auth, db_session):
+def test_create_project_requires_authentication(create_project, bad_auth, count_rows):
     response = create_project(auth=bad_auth)
 
     assert response.status_code == 401
     assert response.headers["WWW-Authenticate"] == "Bearer"
-    assert db_session.query(Project).count() == 0
+    assert count_rows("projects") == 0

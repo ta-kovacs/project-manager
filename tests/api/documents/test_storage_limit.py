@@ -5,8 +5,6 @@
 
 import pytest
 
-from app.models.project import Project
-
 LIMIT_DETAIL = "The project's documents can take up at most 64 bytes in total"
 
 
@@ -106,11 +104,10 @@ def test_delete_releases_the_document_size(delete_document, storage_used, projec
 
 
 def test_document_of_unknown_size_counts_fully_when_replaced(
-    replace_document, delete_document, storage_used, project, document, db_session
+    replace_document, storage_used, project, document, run_sql
 ):
     # Documents uploaded before sizes were recorded have size_bytes NULL.
-    document.size_bytes = None
-    db_session.commit()
+    run_sql("UPDATE documents SET size_bytes = NULL WHERE id = :id", id=document.id)
     before = storage_used(project["id"])
 
     replace_document(document.id, content=b"PK" + b"x" * 8)
@@ -118,10 +115,9 @@ def test_document_of_unknown_size_counts_fully_when_replaced(
     assert storage_used(project["id"]) == before + 10
 
 
-def test_usage_never_goes_below_zero(delete_document, storage_used, project, document, db_session):
+def test_usage_never_goes_below_zero(delete_document, storage_used, project, document, run_sql):
     # e.g. the Lambda measured less than the API had counted
-    db_session.get(Project, project["id"]).storage_used_bytes = 5
-    db_session.commit()
+    run_sql("UPDATE projects SET storage_used_bytes = 5 WHERE id = :id", id=project["id"])
 
     delete_document(document.id)
 

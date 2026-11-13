@@ -5,7 +5,7 @@ A FastAPI backend for managing projects, their members and documents, backed by 
 ## Tech stack
 
 - FastAPI + Uvicorn
-- SQLAlchemy and Alembic (migrations)
+- SQLAlchemy ORM, or hand-written SQL on psycopg without the ORM, and Alembic (migrations)
 - PostgreSQL 17 (via Docker Compose)
 
 ## Running locally
@@ -54,6 +54,7 @@ docker compose up --build
 | Variable | Default | Used by |
 |---|---|---|
 | `DATABASE_URL` | `postgresql+psycopg://postgres:postgres@localhost:5433/mydb` | app and Alembic |
+| `DATABASE_ACCESS` | `orm` | how the app reads and writes the database: `orm` (SQLAlchemy models) or `sql` (hand-written SQL on psycopg, no ORM; PostgreSQL only) |
 | `STORAGE_BACKEND` | `local` | where document files are stored: `s3` (deployed environments) or `local` |
 | `S3_BUCKET` | – | the S3 bucket for document files (required when `STORAGE_BACKEND=s3`) |
 | `STORAGE_DIR` | `storage` | directory for document files with the `local` backend |
@@ -69,6 +70,22 @@ docker compose up --build
 | `PUBLIC_BASE_URL` | the address of the request | base of the links in share emails, e.g. `https://pm.example.com` |
 
 Inside Docker Compose the app connects to `db:5432` instead.
+
+### Database
+
+Everything that talks to the database lives in `app/db/`. The services use one interface
+(`app/db/interface.py`: users, projects and documents repositories, plus commit and rollback) that
+returns plain records (`app/db/records.py`), and there are two interchangeable implementations of it:
+
+- `app/db/orm/`: SQLAlchemy ORM models, mapped to records. Alembic migrations are generated from these
+  models.
+- `app/db/sql/`: no ORM and no SQLAlchemy. Hand-written SQL with `%(name)s` parameters, run on a plain
+  psycopg connection, and the schema written by hand in `app/db/sql/schema.sql`. PostgreSQL only.
+
+`DATABASE_ACCESS` picks one per process; both work on the same database. To create the schema without
+the ORM or Alembic, run `python -m app.db.sql` against an empty database (then `alembic stamp head` if
+Alembic should take over migrations). `schema.sql` also describes how the schema is normalized, and why
+`projects.storage_used_bytes` is deliberately denormalized.
 
 ### Document storage
 
@@ -111,8 +128,21 @@ tox -e py314 -- tests/unit   # one version; arguments after -- go to pytest
 tox -e lint                  # ruff only
 ```
 
-`TEST_DATABASE_URL` (a Postgres URL) and `TEST_STORAGE_BACKEND=s3` (a moto-mocked bucket) switch the suite to
-what CI uses.
+`TEST_DATABASE_URL` (a Postgres URL), `TEST_DATABASE_ACCESS=sql` (the backend without the ORM) and
+`TEST_STORAGE_BACKEND=s3` (a moto-mocked bucket) switch the suite to what CI uses.
+`tests/unit/test_database.py` checks both database backends and `tests/unit/test_schema.py` checks that
+`schema.sql` matches the ORM models.
+
+The SQL backend runs on psycopg, so it needs PostgreSQL: on the default in-memory SQLite database its tests
+are skipped (CI runs them). To run them locally, use a separate, throwaway database, because the tests
+drop every table:
+
+```bash
+docker compose up -d db
+docker compose exec db createdb -U postgres testdb
+export TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5433/testdb
+TEST_DATABASE_ACCESS=sql pytest
+```
 
 ## Linting and formatting
 
@@ -132,8 +162,8 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request and on pu
 - **lint**: `ruff check` and `ruff format --check`
 - **build**: builds the sdist and wheel, checks them with `twine check`, uploads them as the `dist` artifact,
   and byte-compiles `lambdas/`
-- **test**: `tox -e py` against a throwaway PostgreSQL, on Python 3.12 and 3.14, each with local and (mocked)
-  S3 storage
+- **test**: `tox -e py` against a throwaway PostgreSQL, on Python 3.12 and 3.14, each with the ORM and the
+  SQL database backend, plus one run with (mocked) S3 storage
 - **docker**: builds the Docker image from the package's wheel
 - **migrations**: applies all Alembic migrations against a throwaway PostgreSQL service
 - **deploy** (pushes to `main`, or a manual run on `main`): pushes the image to Amazon ECR, then deploys it to a

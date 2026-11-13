@@ -2,8 +2,7 @@
 
 import pytest
 
-from app.models.document import Document
-from app.models.project import Project
+from app.db.records import NewDocument
 from app.routes import documents as document_routes
 from app.services import document_service
 from app.storage import S3Storage
@@ -16,25 +15,19 @@ def document_content():
 
 
 @pytest.fixture
-def make_document(db_session, storage):
-    """Attach a PDF to a project, with its file in `storage`; returns the Document.
+def make_document(db, storage):
+    """Attach a PDF to a project, with its file in `storage`; returns the Document record.
 
     Inserted directly, so tests of other endpoints don't depend on the upload endpoint; the project's
     storage usage is increased by the file's size, as an upload would.
     """
 
     def _make_document(project_id, *, filename="spec.pdf", content=b"%PDF-1.4 test document"):
-        document = Document(
-            project_id=project_id,
-            storage_key=f"projects/{project_id}/documents/{filename}",
-            original_filename=filename,
-            content_type="application/pdf",
-            size_bytes=len(content),
-        )
-        storage.save(document.storage_key, content, "application/pdf")
-        db_session.get(Project, project_id).storage_used_bytes += len(content)
-        db_session.add(document)
-        db_session.commit()
+        new = NewDocument(f"projects/{project_id}/documents/{filename}", filename, "application/pdf", len(content))
+        storage.save(new.storage_key, content, new.content_type)
+        db.projects.adjust_storage_used(project_id, len(content))
+        [document] = db.documents.create_many(project_id, [new])
+        db.commit()
         return document
 
     return _make_document
