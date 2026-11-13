@@ -58,6 +58,25 @@ packages = ["app"]
 [tool.hatch.build.targets.sdist]
 include = ["app/", "tests/", "README.md", "pytest.ini"]
 
+[tool.tox]
+requires = ["tox>=4.22"]
+env_list = ["py312", "py313", "py314", "lint"]
+# Locally, versions that aren't installed are skipped; CI passes --skip-missing-interpreters=false.
+skip_missing_interpreters = true
+
+[tool.tox.env_run_base]
+description = "run the tests on {base_python}"
+dependency_groups = ["test"]
+# Point the suite at Postgres / mocked S3 (see tests/fixtures/app.py).
+pass_env = ["TEST_DATABASE_URL", "TEST_STORAGE_BACKEND"]
+commands = [["pytest", { replace = "posargs", extend = true }]]
+
+[tool.tox.env.lint]
+description = "lint and check formatting with ruff"
+skip_install = true
+dependency_groups = ["lint"]
+commands = [["ruff", "check", "."], ["ruff", "format", "--check", "."]]
+
 [tool.ruff]
 target-version = "py312"
 line-length = 120

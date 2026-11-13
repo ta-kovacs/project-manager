@@ -6,3 +6,7 @@ __pycache__
 
 TASK.md
 storage/
+
+# tox environments and package builds
+.tox/
+dist/
