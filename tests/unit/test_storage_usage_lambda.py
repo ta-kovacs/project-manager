@@ -238,7 +238,7 @@ def test_token_is_read_from_ssm_when_not_given_directly(monkeypatch, s3_client):
 
 
 def test_lambda_corrects_the_apis_storage_usage(
-    client, s3_client, s3_bucket, project, auth, internal_token, storage_used, db_session, monkeypatch, lambda_env
+    client, s3_client, s3_bucket, project, auth, internal_token, storage_used, monkeypatch, lambda_env
 ):
     """S3 holds more than the API counted (e.g. a file left behind by a failed delete): the Lambda's
     measurement replaces the API's count."""

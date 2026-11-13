@@ -2,9 +2,6 @@
 
 import pytest
 
-from app.db.orm.models.document import Document
-from app.db.orm.models.project import Project
-from app.db.orm.models.project_user import ProjectUser
 from app.storage import StoredFileNotFoundError
 
 
@@ -18,13 +15,13 @@ def test_delete_project_by_owner(delete_project, get_project_info, list_projects
 
 
 def test_delete_project_removes_documents_and_memberships(
-    delete_project, project, document, participant_auth, db_session
+    delete_project, project, document, participant_auth, count_rows
 ):
     delete_project(project["id"])
 
-    assert db_session.query(Project).count() == 0
-    assert db_session.query(Document).count() == 0
-    assert db_session.query(ProjectUser).count() == 0
+    assert count_rows("projects") == 0
+    assert count_rows("documents") == 0
+    assert count_rows("project_users") == 0
 
 
 def test_delete_project_removes_document_files(delete_project, project, document, storage):
@@ -37,18 +34,10 @@ def test_delete_project_removes_document_files(delete_project, project, document
 
 
 def test_delete_project_keeps_other_projects_files(
-    delete_project, create_project, project, document, other_auth, storage, db_session
+    delete_project, create_project, make_document, project, document, other_auth, storage
 ):
     other_project = create_project(name="Bob's project", auth=other_auth).json()
-    other_document = Document(
-        project_id=other_project["id"],
-        storage_key=f"projects/{other_project['id']}/documents/plan",
-        original_filename="plan.pdf",
-        content_type="application/pdf",
-    )
-    storage.save(other_document.storage_key, b"bob's file", "application/pdf")
-    db_session.add(other_document)
-    db_session.commit()
+    other_document = make_document(other_project["id"], filename="plan.pdf", content=b"bob's file")
 
     delete_project(project["id"])
 

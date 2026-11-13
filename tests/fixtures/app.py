@@ -6,7 +6,7 @@ import boto3
 import pytest
 from fastapi.testclient import TestClient
 from moto import mock_aws
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -41,14 +41,43 @@ TEST_REGION = "eu-north-1"
 
 
 @pytest.fixture
-def db_session():
-    """A fresh, empty schema for each test."""
+def db():
+    """The test database with a fresh, empty schema, as a Database for setting up and checking data.
+
+    It goes through the same interface as the app, so tests don't depend on how the app accesses the
+    database. API requests each get their own Database on the same database, as in production.
+    """
     Base.metadata.create_all(engine)
     try:
         with TestingSessionLocal() as session:
-            yield session
+            yield OrmDatabase(session)
     finally:
         Base.metadata.drop_all(engine)
+
+
+@pytest.fixture
+def run_sql(db):
+    """Runs a SQL statement (with :named parameters) and commits it.
+
+    For setting up state the app can't produce through its interface, e.g. data from before a migration.
+    """
+
+    def _run_sql(statement, **params):
+        with engine.begin() as connection:
+            connection.execute(text(statement), params)
+
+    return _run_sql
+
+
+@pytest.fixture
+def count_rows(db):
+    """Returns the number of rows in a table."""
+
+    def _count_rows(table):
+        with engine.connect() as connection:
+            return connection.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar_one()
+
+    return _count_rows
 
 
 @pytest.fixture
@@ -107,11 +136,12 @@ def mailer():
 
 
 @pytest.fixture
-def client(db_session, storage, mailer):
+def client(db, storage, mailer):
     """API client whose requests use the test database, storage and mailer."""
 
     def override_get_db():
-        yield OrmDatabase(db_session)
+        with TestingSessionLocal() as session:
+            yield OrmDatabase(session)
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_storage] = lambda: storage

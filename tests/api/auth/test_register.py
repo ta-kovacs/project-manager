@@ -2,7 +2,6 @@
 
 import pytest
 
-from app.db.orm.models.user import User
 from app.security import verify_password
 
 
@@ -17,10 +16,10 @@ def test_register_returns_created_user(register, credentials):
     assert isinstance(body["id"], int)
 
 
-def test_register_stores_password_hash_only(register, credentials, db_session):
+def test_register_stores_password_hash_only(register, credentials, db):
     register()
 
-    user = db_session.query(User).filter_by(username=credentials["username"]).one()
+    user = db.users.get_by_username(credentials["username"])
     assert user.password_hash != credentials["password"]
     assert verify_password(credentials["password"], user.password_hash)
 
@@ -43,11 +42,11 @@ def test_register_duplicate_username_conflicts(register):
         pytest.param({"username": "a" * 251}, id="username-too-long"),
     ],
 )
-def test_register_invalid_data_is_rejected(register, db_session, overrides):
+def test_register_invalid_data_is_rejected(register, count_rows, overrides):
     response = register(**overrides)
 
     assert response.status_code == 422
-    assert db_session.query(User).count() == 0
+    assert count_rows("users") == 0
 
 
 @pytest.mark.parametrize("missing", ["username", "password", "repeat_password"])

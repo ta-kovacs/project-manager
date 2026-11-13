@@ -3,7 +3,6 @@
 import pytest
 
 import app.security as security
-from app.db.orm.models.project_user import ProjectUser
 
 
 def test_share_link_from_email_grants_access(
@@ -40,14 +39,14 @@ def test_joined_user_has_participant_permissions(
     assert delete_project(project["id"], auth=other_auth).status_code == 403
 
 
-def test_join_project_twice_keeps_one_membership(join_project, share_token, db_session):
+def test_join_project_twice_keeps_one_membership(join_project, share_token, count_rows):
     first = join_project(share_token).json()
 
     second = join_project(share_token)
 
     assert second.status_code == 200
     assert second.json() == first
-    assert db_session.query(ProjectUser).count() == 2  # owner + the joined user
+    assert count_rows("project_users") == 2  # owner + the joined user
 
 
 @pytest.mark.parametrize(
@@ -57,15 +56,15 @@ def test_join_project_twice_keeps_one_membership(join_project, share_token, db_s
         pytest.param("participant_auth", "participant", id="participant"),
     ],
 )
-def test_join_project_existing_member_keeps_role(join_project, share_token, db_session, request, caller, role):
+def test_join_project_existing_member_keeps_role(join_project, share_token, count_rows, request, caller, role):
     member_auth = request.getfixturevalue(caller)  # resolved first: participant_auth adds a member
-    members_before = db_session.query(ProjectUser).count()
+    members_before = count_rows("project_users")
 
     response = join_project(share_token, auth=member_auth)
 
     assert response.status_code == 200
     assert response.json()["role"] == role
-    assert db_session.query(ProjectUser).count() == members_before
+    assert count_rows("project_users") == members_before
 
 
 @pytest.mark.parametrize(
@@ -75,15 +74,15 @@ def test_join_project_existing_member_keeps_role(join_project, share_token, db_s
         pytest.param("eyJwcm9qZWN0X2lkIjoxfQ.forged.signature", id="forged"),
     ],
 )
-def test_join_project_invalid_token_is_rejected(join_project, project, db_session, token):
+def test_join_project_invalid_token_is_rejected(join_project, project, count_rows, token):
     response = join_project(token)
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid share link"
-    assert db_session.query(ProjectUser).count() == 1
+    assert count_rows("project_users") == 1
 
 
-def test_join_project_tampered_token_is_rejected(join_project, share_token, db_session):
+def test_join_project_tampered_token_is_rejected(join_project, share_token, count_rows):
     # Change the signature's first character: the last one also carries base64 padding bits that
     # decoding ignores, so changing it can leave the signature valid.
     payload, signature = share_token.rsplit(".", 1)
@@ -92,17 +91,17 @@ def test_join_project_tampered_token_is_rejected(join_project, share_token, db_s
     response = join_project(f"{payload}.{tampered}")
 
     assert response.status_code == 400
-    assert db_session.query(ProjectUser).count() == 1
+    assert count_rows("project_users") == 1
 
 
-def test_join_project_expired_token_is_gone(join_project, share_token, db_session, monkeypatch):
+def test_join_project_expired_token_is_gone(join_project, share_token, count_rows, monkeypatch):
     monkeypatch.setattr(security, "SHARE_LINK_MAX_AGE", -1)  # every token is now too old
 
     response = join_project(share_token)
 
     assert response.status_code == 410
     assert response.json()["detail"] == "This share link has expired"
-    assert db_session.query(ProjectUser).count() == 1
+    assert count_rows("project_users") == 1
 
 
 def test_join_deleted_project_is_not_found(join_project, share_token, delete_project, project):
@@ -121,9 +120,9 @@ def test_join_project_without_token_is_rejected(join_project):
     assert response.json()["detail"][0]["loc"] == ["query", "token"]
 
 
-def test_join_project_requires_authentication(join_project, share_token, bad_auth, db_session):
+def test_join_project_requires_authentication(join_project, share_token, bad_auth, count_rows):
     response = join_project(share_token, auth=bad_auth)
 
     assert response.status_code == 401
     assert response.headers["WWW-Authenticate"] == "Bearer"
-    assert db_session.query(ProjectUser).count() == 1
+    assert count_rows("project_users") == 1

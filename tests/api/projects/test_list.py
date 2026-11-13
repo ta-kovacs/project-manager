@@ -2,8 +2,7 @@
 
 import pytest
 
-from app.db.orm.models.document import Document
-from app.db.orm.models.project_user import ProjectRole, ProjectUser
+from app.db.records import NewDocument, ProjectRole
 
 
 @pytest.fixture
@@ -34,13 +33,11 @@ def test_list_projects_excludes_other_users_projects(list_projects, create_proje
 
 
 def test_list_projects_includes_projects_user_participates_in(
-    list_projects, create_project, other_auth, registered_user, db_session
+    list_projects, create_project, other_auth, registered_user, db
 ):
     bobs_project = create_project(name="Bob's project", auth=other_auth).json()
-    db_session.add(
-        ProjectUser(project_id=bobs_project["id"], user_id=registered_user["id"], role=ProjectRole.PARTICIPANT)
-    )
-    db_session.commit()
+    db.projects.add_member(bobs_project["id"], registered_user["id"], ProjectRole.PARTICIPANT)
+    db.commit()
 
     listed = list_projects().json()
 
@@ -48,16 +45,11 @@ def test_list_projects_includes_projects_user_participates_in(
     assert listed[0]["owner"]["username"] == "bob"
 
 
-def test_list_projects_includes_documents(list_projects, projects, db_session):
-    document = Document(
-        project_id=projects[0]["id"],
-        storage_key="projects/1/spec.pdf",
-        original_filename="spec.pdf",
-        content_type="application/pdf",
-        size_bytes=1234,
+def test_list_projects_includes_documents(list_projects, projects, db):
+    [document] = db.documents.create_many(
+        projects[0]["id"], [NewDocument("projects/1/spec.pdf", "spec.pdf", "application/pdf", 1234)]
     )
-    db_session.add(document)
-    db_session.commit()
+    db.commit()
 
     apollo, gemini = list_projects().json()
 

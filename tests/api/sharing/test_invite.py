@@ -2,8 +2,6 @@
 
 import pytest
 
-from app.db.orm.models.project_user import ProjectUser
-
 
 @pytest.fixture
 def invitee(other_auth):
@@ -43,12 +41,12 @@ def test_invited_user_gets_participant_access(
     assert delete_project(project["id"], auth=other_auth).status_code == 403
 
 
-def test_invite_user_by_participant_is_forbidden(invite_user, project, participant_auth, third_auth, db_session):
+def test_invite_user_by_participant_is_forbidden(invite_user, project, participant_auth, third_auth, count_rows):
     response = invite_user(project["id"], third_auth.username, auth=participant_auth)
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Only the project owner can invite users"
-    assert db_session.query(ProjectUser).count() == 2  # owner + participant only
+    assert count_rows("project_users") == 2  # owner + participant only
 
 
 def test_invite_user_by_non_member_is_not_found(invite_user, project, other_auth, third_auth):
@@ -80,7 +78,7 @@ def test_invite_unknown_user_is_not_found(invite_user, project):
     ],
 )
 def test_invite_existing_member_conflicts(
-    invite_user, project, credentials, participant_auth, db_session, existing_member
+    invite_user, project, credentials, participant_auth, count_rows, existing_member
 ):
     username = participant_auth.username if existing_member == "participant" else credentials["username"]
 
@@ -88,7 +86,7 @@ def test_invite_existing_member_conflicts(
 
     assert response.status_code == 409
     assert response.json()["detail"] == "User already has access to the project"
-    assert db_session.query(ProjectUser).count() == 2
+    assert count_rows("project_users") == 2
 
 
 @pytest.mark.parametrize("username", [pytest.param(None, id="missing"), pytest.param("", id="empty")])
@@ -99,9 +97,9 @@ def test_invite_user_without_login_is_rejected(invite_user, project, username):
     assert response.json()["detail"][0]["loc"] == ["query", "user"]
 
 
-def test_invite_user_requires_authentication(invite_user, project, invitee, bad_auth, db_session):
+def test_invite_user_requires_authentication(invite_user, project, invitee, bad_auth, count_rows):
     response = invite_user(project["id"], invitee, auth=bad_auth)
 
     assert response.status_code == 401
     assert response.headers["WWW-Authenticate"] == "Bearer"
-    assert db_session.query(ProjectUser).count() == 1  # only the owner
+    assert count_rows("project_users") == 1  # only the owner

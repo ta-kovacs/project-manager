@@ -13,9 +13,8 @@ def test_download_document_returns_file(download_document, document, document_co
     assert response.headers["Content-Disposition"] == "attachment; filename=\"spec.pdf\"; filename*=UTF-8''spec.pdf"
 
 
-def test_download_document_keeps_non_ascii_filename(download_document, document, db_session):
-    document.original_filename = "jelentés 2026.pdf"
-    db_session.commit()
+def test_download_document_keeps_non_ascii_filename(download_document, project, make_document):
+    document = make_document(project["id"], filename="jelentés 2026.pdf")
 
     disposition = download_document(document.id).headers["Content-Disposition"]
 
