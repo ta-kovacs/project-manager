@@ -105,6 +105,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build Docker image
         run: docker build -t project-manager:${GITHUB_SHA::7} .
+      - name: Build frontend image
+        run: docker build -t project-manager-frontend:${GITHUB_SHA::7} frontend
+      # "app" only resolves inside the production compose network, so point it at localhost for the check.
+      - name: Check the frontend's nginx configuration
+        run: docker run --rm --add-host app:127.0.0.1 project-manager-frontend:${GITHUB_SHA::7} nginx -t
 
   migrations:
     runs-on: ubuntu-latest
@@ -169,12 +174,23 @@ jobs:
           docker push "$image"
           echo "uri=$image" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy to EC2 (migrations + app) via SSM
+      # Same repository, tagged frontend-<sha>, so no second ECR repository or IAM change is needed.
+      - name: Build and push frontend image to ECR
+        id: frontend
+        run: |
+          image="${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY || 'project-manager' }}:frontend-${GITHUB_SHA}"
+          docker build -t "$image" frontend
+          docker push "$image"
+          echo "uri=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to EC2 (migrations, app and frontend) via SSM
         env:
           S3_BUCKET: ${{ vars.S3_BUCKET }}
           MAIL_SENDER: ${{ vars.MAIL_SENDER }}
           PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
-        run: bash .github/scripts/deploy-ec2.sh "${{ vars.EC2_INSTANCE_ID }}" "${{ steps.image.outputs.uri }}"
+        run: >-
+          bash .github/scripts/deploy-ec2.sh "${{ vars.EC2_INSTANCE_ID }}"
+          "${{ steps.image.outputs.uri }}" "${{ steps.frontend.outputs.uri }}"
 
       # After the app, so the database already has the columns the Lambda's reports are stored in.
       # Skipped until the STORAGE_USAGE_LAMBDA variable names the function; the deploy role or user needs
@@ -190,4 +206,4 @@ jobs:
           aws lambda wait function-updated-v2 --function-name "${{ vars.STORAGE_USAGE_LAMBDA }}"
 
       - name: Summary
-        run: echo "Deployed \`${{ steps.image.outputs.uri }}\` to instance \`${{ vars.EC2_INSTANCE_ID }}\`" >> "$GITHUB_STEP_SUMMARY"
+        run: echo "Deployed \`${{ steps.image.outputs.uri }}\` and \`${{ steps.frontend.outputs.uri }}\` to instance \`${{ vars.EC2_INSTANCE_ID }}\`" >> "$GITHUB_STEP_SUMMARY"

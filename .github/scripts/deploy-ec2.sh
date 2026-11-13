@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# Deploy an image to the EC2 host through SSM Run Command (no SSH) and wait for the result.
+# Deploy the API and frontend images to the EC2 host through SSM Run Command (no SSH) and wait for the result.
 #
 # On the host it: writes docker-compose.prod.yaml and .env (DB password, share-link and JWT secrets and the
-# internal API token from SSM Parameter Store), pulls the image from ECR, starts Postgres, runs `alembic upgrade head`,
-# starts the app and checks /health.
+# internal API token from SSM Parameter Store), pulls the images from ECR, starts Postgres, runs
+# `alembic upgrade head`, starts the app and the frontend, and checks /health and the frontend through port 80.
 #
-# Usage: deploy-ec2.sh <instance-id> <image-uri>
+# Usage: deploy-ec2.sh <instance-id> <app-image-uri> <frontend-image-uri>
 # Env:   AWS_REGION, S3_BUCKET and MAIL_SENDER (required), PUBLIC_BASE_URL (optional),
 #        SSM_PARAMETER_PREFIX (default /project-manager)
 set -euo pipefail
 
 instance_id=$1
 image=$2
+frontend_image=${3:?usage: deploy-ec2.sh <instance-id> <app-image-uri> <frontend-image-uri>}
 region=${AWS_REGION:?AWS_REGION must be set}
 s3_bucket=${S3_BUCKET:?S3_BUCKET must be set (the bucket holding document files)}
 mail_sender=${MAIL_SENDER:?MAIL_SENDER must be set (the verified SES address share emails come from)}
@@ -30,15 +31,19 @@ share_secret=\$(aws ssm get-parameter --region $region --name $param_prefix/shar
 jwt_secret=\$(aws ssm get-parameter --region $region --name $param_prefix/jwt-secret-key --with-decryption --query Parameter.Value --output text)
 internal_token=\$(aws ssm get-parameter --region $region --name $param_prefix/internal-api-token --with-decryption --query Parameter.Value --output text)
 umask 077
-printf 'APP_IMAGE=%s\nPOSTGRES_PASSWORD=%s\nS3_BUCKET=%s\nAWS_REGION=%s\nSHARE_SECRET_KEY=%s\nMAIL_SENDER=%s\nPUBLIC_BASE_URL=%s\nJWT_SECRET_KEY=%s\nINTERNAL_API_TOKEN=%s\n' '$image' "\$db_password" '$s3_bucket' '$region' "\$share_secret" '$mail_sender' '$public_base_url' "\$jwt_secret" "\$internal_token" > .env
+printf 'APP_IMAGE=%s\nFRONTEND_IMAGE=%s\nPOSTGRES_PASSWORD=%s\nS3_BUCKET=%s\nAWS_REGION=%s\nSHARE_SECRET_KEY=%s\nMAIL_SENDER=%s\nPUBLIC_BASE_URL=%s\nJWT_SECRET_KEY=%s\nINTERNAL_API_TOKEN=%s\n' '$image' '$frontend_image' "\$db_password" '$s3_bucket' '$region' "\$share_secret" '$mail_sender' '$public_base_url' "\$jwt_secret" "\$internal_token" > .env
 aws ecr get-login-password --region $region | docker login --username AWS --password-stdin $registry
-docker compose -f docker-compose.prod.yaml pull app
+docker compose -f docker-compose.prod.yaml pull app frontend
 docker compose -f docker-compose.prod.yaml up -d --wait db
 docker compose -f docker-compose.prod.yaml run --rm app alembic upgrade head
 docker compose -f docker-compose.prod.yaml up -d --remove-orphans
 docker image prune -f
-for attempt in \$(seq 1 30); do curl -fsS http://localhost/health && echo && exit 0; sleep 2; done
-echo "Health check failed"; docker compose -f docker-compose.prod.yaml logs --tail 50 app; exit 1
+# Both through port 80: the API via the frontend's proxy, and the frontend itself.
+for attempt in \$(seq 1 30); do
+  if curl -fsS http://localhost/health && curl -fsS http://localhost/ | grep -q '<title>Project Manager</title>'; then echo; exit 0; fi
+  sleep 2
+done
+echo "Health check failed"; docker compose -f docker-compose.prod.yaml logs --tail 50 app frontend; exit 1
 REMOTE
 )
 

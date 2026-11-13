@@ -1,6 +1,9 @@
 # Production stack for the single EC2 host.
-# Deployed by .github/scripts/deploy-ec2.sh, which writes APP_IMAGE and
-# POSTGRES_PASSWORD into a .env file next to this one on the server.
+# Deployed by .github/scripts/deploy-ec2.sh, which writes APP_IMAGE, FRONTEND_IMAGE,
+# POSTGRES_PASSWORD and the other settings into a .env file next to this one on the server.
+#
+# Port 80 is the frontend container (nginx): it serves the frontend and forwards every other request
+# to the API, so the public address serves both and the API's URLs are unchanged.
 services:
   db:
     image: postgres:17
@@ -36,11 +39,18 @@ services:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY is not set}
       # Authenticates the storage-usage Lambda's reports (PUT /internal/projects/{id}/storage-usage).
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is not set}
-    ports:
-      - "80:8000"
+    # No published port: requests reach the API through the frontend container.
     depends_on:
       db:
         condition: service_healthy
+
+  frontend:
+    image: ${FRONTEND_IMAGE:?FRONTEND_IMAGE is not set}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - app
 
 volumes:
   postgres_data:
