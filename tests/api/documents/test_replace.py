@@ -132,3 +132,40 @@ def test_replace_document_requires_authentication(replace_document, document, ba
     assert response.status_code == 401
     assert response.headers["WWW-Authenticate"] == "Bearer"
     assert_unchanged()
+
+
+def test_replace_document_points_at_the_new_file_before_storing_it(
+    replace_document, document, storage, db, monkeypatch
+):
+    # The storage-usage Lambda runs as soon as the new file reaches S3; it must find the document by it.
+    real_save = storage.save
+    stored_key_when_saved = []
+
+    def save_and_check(key, data, content_type):
+        stored_key_when_saved.append(db.documents.get(document.id).storage_key == key)
+        real_save(key, data, content_type)
+
+    monkeypatch.setattr(storage, "save", save_and_check)
+
+    replace_document(document.id)
+
+    assert stored_key_when_saved == [True]
+
+
+def test_replace_document_storage_failure_keeps_the_old_file(
+    replace_document, document, storage, storage_used, project, assert_unchanged, db, monkeypatch
+):
+    usage_before = storage_used(project["id"])
+
+    def broken_save(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(storage, "save", broken_save)
+
+    with pytest.raises(OSError):
+        replace_document(document.id, content=b"PK" + b"x" * 500)
+    monkeypatch.undo()
+
+    assert_unchanged()
+    assert db.documents.get(document.id) == document
+    assert storage_used(project["id"]) == usage_before
