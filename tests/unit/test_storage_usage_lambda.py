@@ -7,7 +7,8 @@ from datetime import datetime
 import boto3
 import pytest
 
-from app.storage import S3Storage
+from app.main import app
+from app.storage import S3Storage, get_storage
 from lambdas.storage_usage import handler
 
 API = "https://api.test"
@@ -42,8 +43,8 @@ def sent_reports(monkeypatch, lambda_env):
     """Records the reports the Lambda sends instead of sending them; set `.status` to answer differently."""
     reports = _Reports()
 
-    def fake_send_report(url, body, token):
-        reports.append({"url": url, "body": body, "token": token})
+    def fake_send_report(url, body, token, *, method="PUT"):
+        reports.append({"method": method, "url": url, "body": body, "token": token})
         return reports.status
 
     monkeypatch.setattr(handler, "send_report", fake_send_report)
@@ -247,12 +248,180 @@ def test_lambda_corrects_the_apis_storage_usage(
     storage.save(f"projects/{project['id']}/documents/orphan", b"x" * 50)
     monkeypatch.setenv("INTERNAL_API_TOKEN", internal_token)
 
-    def send_through_test_client(url, body, token):
+    def send_through_test_client(url, body, token, *, method="PUT"):
         path = url.removeprefix(API)
-        return client.put(path, json=body, headers={"Authorization": f"Bearer {token}"}).status_code
+        return client.request(method, path, json=body, headers={"Authorization": f"Bearer {token}"}).status_code
 
     monkeypatch.setattr(handler, "send_report", send_through_test_client)
 
     handler.lambda_handler(s3_event(s3_bucket, f"projects/{project['id']}/documents/a"), None, s3=s3_client)
 
     assert storage_used(project["id"]) == 350
+
+
+# --- enforcing the storage limit ----------------------------------------------------------------
+
+LIMIT = 64
+
+
+@pytest.fixture
+def limit(monkeypatch):
+    monkeypatch.setenv("PROJECT_STORAGE_LIMIT", str(LIMIT))
+    return LIMIT
+
+
+def stored_keys(s3_client, bucket):
+    return sorted(item["Key"] for item in s3_client.list_objects_v2(Bucket=bucket).get("Contents", []))
+
+
+def test_uploads_in_event_lists_uploaded_files_by_project():
+    event = {
+        "Records": [
+            *s3_event("docs", "projects/7/documents/a", "projects/7/documents/my+file", "projects/9/documents/c")[
+                "Records"
+            ],
+            *s3_event("docs", "projects/7/documents/old", event_name="ObjectRemoved:Delete")["Records"],
+            *s3_event("docs", "projects/7/usage.json")["Records"],
+        ]
+    }
+
+    assert handler.uploads_in_event(event) == {
+        ("docs", 7): ["projects/7/documents/a", "projects/7/documents/my file"],
+        ("docs", 9): ["projects/9/documents/c"],
+    }
+
+
+def test_storage_limit_defaults_to_the_apis(monkeypatch):
+    monkeypatch.delenv("PROJECT_STORAGE_LIMIT", raising=False)
+
+    assert handler.storage_limit() == 100 * 1024 * 1024
+
+
+@pytest.mark.parametrize(
+    ("files", "uploaded", "expected"),
+    [
+        pytest.param({"old": 30, "new": 30}, ["new"], [], id="within-the-limit"),
+        pytest.param({"old": 40, "new": 30}, ["new"], ["new"], id="over-the-limit"),
+        pytest.param({"a": 30, "b": 30, "c": 30}, ["a", "b", "c"], ["c"], id="newest-first-only-as-needed"),
+        pytest.param({"a": 30, "b": 30, "c": 30}, ["a", "b", "c", "c"], ["c"], id="each-key-once"),
+        pytest.param({"old": 100, "new": 10}, ["new"], ["new"], id="never-older-files"),
+        pytest.param({"old": 70}, ["gone"], [], id="uploads-no-longer-stored"),
+    ],
+)
+def test_files_to_reject(files, uploaded, expected):
+    assert handler.files_to_reject(files, uploaded, LIMIT) == expected
+
+
+def test_upload_over_the_limit_is_rejected(s3_client, s3_bucket, sent_reports, limit):
+    put(s3_client, s3_bucket, "projects/1/documents/old", 40)
+    put(s3_client, s3_bucket, "projects/1/documents/new", 30)
+
+    result = handler.lambda_handler(s3_event(s3_bucket, "projects/1/documents/new"), None, s3=s3_client)
+
+    assert result == {"reported": [{"project_id": 1, "total_size_bytes": 40, "rejected": ["projects/1/documents/new"]}]}
+    assert stored_keys(s3_client, s3_bucket) == ["projects/1/documents/old"]
+    # The API hears about the rejected file first, then gets the new total.
+    assert [
+        (r["method"], r["url"], r["body"].get("storage_keys"), r["body"].get("total_size_bytes")) for r in sent_reports
+    ] == [
+        ("POST", f"{API}/internal/projects/1/rejected-files", ["projects/1/documents/new"], None),
+        ("PUT", f"{API}/internal/projects/1/storage-usage", None, 40),
+    ]
+
+
+def test_upload_within_the_limit_is_kept(s3_client, s3_bucket, sent_reports, limit):
+    put(s3_client, s3_bucket, "projects/1/documents/new", 64)
+
+    result = handler.lambda_handler(s3_event(s3_bucket, "projects/1/documents/new"), None, s3=s3_client)
+
+    assert result == {"reported": [{"project_id": 1, "total_size_bytes": 64}]}
+    assert stored_keys(s3_client, s3_bucket) == ["projects/1/documents/new"]
+    assert [r["method"] for r in sent_reports] == ["PUT"]
+
+
+def test_only_as_many_uploads_as_needed_are_rejected(s3_client, s3_bucket, sent_reports, limit):
+    keys = [f"projects/1/documents/{name}" for name in ("a", "b", "c")]
+    for key in keys:
+        put(s3_client, s3_bucket, key, 30)
+
+    handler.lambda_handler(s3_event(s3_bucket, *keys), None, s3=s3_client)
+
+    assert stored_keys(s3_client, s3_bucket) == keys[:2]
+
+
+def test_files_stored_before_are_never_removed(s3_client, s3_bucket, sent_reports, limit):
+    # e.g. the limit was lowered after the project filled up
+    put(s3_client, s3_bucket, "projects/1/documents/old", 100)
+    put(s3_client, s3_bucket, "projects/1/documents/new", 10)
+
+    result = handler.lambda_handler(s3_event(s3_bucket, "projects/1/documents/new"), None, s3=s3_client)
+
+    assert stored_keys(s3_client, s3_bucket) == ["projects/1/documents/old"]
+    assert result["reported"][0]["total_size_bytes"] == 100
+
+
+def test_removals_never_reject_anything(s3_client, s3_bucket, sent_reports, limit):
+    put(s3_client, s3_bucket, "projects/1/documents/old", 100)
+    event = s3_event(s3_bucket, "projects/1/documents/other", event_name="ObjectRemoved:Delete")
+
+    handler.lambda_handler(event, None, s3=s3_client)
+
+    assert stored_keys(s3_client, s3_bucket) == ["projects/1/documents/old"]
+    assert [r["method"] for r in sent_reports] == ["PUT"]
+
+
+def test_nothing_is_deleted_when_the_api_refuses_the_rejection(s3_client, s3_bucket, sent_reports, limit):
+    # The invocation fails and Lambda retries it; the file must still be there for the retry.
+    put(s3_client, s3_bucket, "projects/1/documents/new", 100)
+    sent_reports.status = 500
+
+    with pytest.raises(RuntimeError, match=r"projects \[1\]"):
+        handler.lambda_handler(s3_event(s3_bucket, "projects/1/documents/new"), None, s3=s3_client)
+
+    assert stored_keys(s3_client, s3_bucket) == ["projects/1/documents/new"]
+
+
+def test_rejected_files_of_a_deleted_project_are_still_deleted(s3_client, s3_bucket, sent_reports, limit):
+    put(s3_client, s3_bucket, "projects/1/documents/new", 100)
+    sent_reports.status = 404
+
+    handler.lambda_handler(s3_event(s3_bucket, "projects/1/documents/new"), None, s3=s3_client)
+
+    assert stored_keys(s3_client, s3_bucket) == []
+
+
+def test_lambda_rejects_an_upload_over_the_limit_end_to_end(
+    client,
+    s3_client,
+    s3_bucket,
+    project,
+    upload_documents,
+    list_project_documents,
+    storage_used,
+    db,
+    internal_token,
+    monkeypatch,
+    lambda_env,
+    limit,
+):
+    """A file uploaded through the API takes the project over the Lambda's limit: the Lambda deletes it
+    from S3 and the API removes its document."""
+    app.dependency_overrides[get_storage] = lambda: S3Storage(s3_bucket, client=s3_client)
+    monkeypatch.setenv("INTERNAL_API_TOKEN", internal_token)
+
+    def send_through_test_client(url, body, token, *, method="PUT"):
+        path = url.removeprefix(API)
+        return client.request(method, path, json=body, headers={"Authorization": f"Bearer {token}"}).status_code
+
+    monkeypatch.setattr(handler, "send_report", send_through_test_client)
+    [kept] = upload_documents(project["id"], files=[("kept.pdf", b"x" * 40)]).json()
+    [big] = upload_documents(project["id"], files=[("big.pdf", b"x" * 30)]).json()
+    kept_key, big_key = (db.documents.get(d["id"]).storage_key for d in (kept, big))
+
+    # S3 sends one event per uploaded file; this is the one for big.pdf.
+    result = handler.lambda_handler(s3_event(s3_bucket, big_key), None, s3=s3_client)
+
+    assert result["reported"][0]["rejected"] == [big_key]
+    assert stored_keys(s3_client, s3_bucket) == [kept_key]
+    assert [d["id"] for d in list_project_documents(project["id"]).json()] == [kept["id"]]
+    assert storage_used(project["id"]) == 40
