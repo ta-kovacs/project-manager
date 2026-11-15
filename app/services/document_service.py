@@ -203,3 +203,26 @@ def delete_document(db: Database, storage: Storage, user: User, document_id: int
     db.commit()
     # Removed after the commit: a failure here leaves an orphaned file, never a document without one.
     storage.delete(document.storage_key)
+
+
+def remove_rejected_files(db: Database, project_id: int, storage_keys: list[str]) -> list[int]:
+    """Remove the project's documents whose files the storage-usage Lambda rejected; returns their ids.
+
+    The Lambda has already deleted the files from S3 (they took the project over PROJECT_STORAGE_LIMIT), so
+    only the documents and the storage they counted for are removed here. Keys that belong to no document of
+    this project (e.g. files put into the bucket without the API) are ignored. Raises
+    project_service.ProjectNotFoundError if the project doesn't exist.
+    """
+    if db.projects.get(project_id) is None:
+        raise project_service.ProjectNotFoundError(project_id)
+
+    removed = []
+    for key in dict.fromkeys(storage_keys):  # each key once, in order
+        document = db.documents.get_by_storage_key(key)
+        if document is None or document.project_id != project_id:
+            continue
+        db.projects.adjust_storage_used(project_id, -(document.size_bytes or 0))
+        db.documents.delete(document.id)
+        removed.append(document.id)
+    db.commit()
+    return removed

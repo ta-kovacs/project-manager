@@ -75,6 +75,10 @@ class ProjectRepository(Protocol):
 class DocumentRepository(Protocol):
     def get(self, document_id: int) -> Document | None: ...
 
+    def get_by_storage_key(self, storage_key: str) -> Document | None:
+        """The document whose file is stored under `storage_key` (keys are unique)."""
+        ...
+
     def list_for_project(self, project_id: int) -> list[Document]:
         """The project's documents, oldest first."""
         ...

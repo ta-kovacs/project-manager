@@ -65,3 +65,18 @@ class StorageUsageReport(BaseModel):
 
     total_size_bytes: NonNegativeInt
     measured_at: AwareDatetime = Field(description="When the measurement started (with a timezone)")
+
+
+StorageKey = Annotated[str, StringConstraints(min_length=1, max_length=500)]
+
+
+class RejectedFiles(BaseModel):
+    """Files the storage-usage Lambda deleted from S3 because they took their project over the limit."""
+
+    storage_keys: list[StorageKey] = Field(min_length=1, max_length=1000)
+
+
+class RejectedFilesResult(BaseModel):
+    """The documents removed because their files were rejected."""
+
+    removed_document_ids: list[int]

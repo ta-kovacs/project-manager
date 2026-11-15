@@ -32,6 +32,12 @@ class SqlDocumentRepository:
         ).fetchone()
         return None if row is None else Document(**row)
 
+    def get_by_storage_key(self, storage_key: str) -> Document | None:
+        row = self.connection.execute(
+            f"SELECT {COLUMNS} FROM documents WHERE storage_key = %(storage_key)s", {"storage_key": storage_key}
+        ).fetchone()
+        return None if row is None else Document(**row)
+
     def list_for_project(self, project_id: int) -> list[Document]:
         return documents_by_project(self.connection, [project_id]).get(project_id, [])
 
