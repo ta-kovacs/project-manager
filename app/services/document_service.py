@@ -107,22 +107,35 @@ def upload_documents(
     checked = [(*validate_file(filename, data), data) for filename, data in files]
     upload_size = sum(len(data) for _, _, data in checked)
 
-    stored: list[NewDocument] = []
+    new_documents = [
+        NewDocument(_new_storage_key(project.id), name, content_type, len(data)) for name, content_type, data in checked
+    ]
+
+    # The documents (and the storage they reserve) are committed before any file reaches S3. S3 triggers
+    # the storage-usage Lambda for every new file, and this way the API always knows the file's document
+    # when the Lambda reports it (e.g. because it rejected the file for going over the limit).
     try:
-        # Reserved in the same transaction that creates the documents, so a failed upload releases it.
         if not db.projects.adjust_storage_used(project.id, upload_size, limit=PROJECT_STORAGE_LIMIT):
             raise ProjectStorageLimitError(project.id)
-        for name, content_type, data in checked:
-            key = _new_storage_key(project.id)
-            storage.save(key, data, content_type)
-            stored.append(NewDocument(key, name, content_type, len(data)))
-        documents = db.documents.create_many(project.id, stored)
+        documents = db.documents.create_many(project.id, new_documents)
         db.commit()
     except Exception:
-        # Don't leave files behind for documents that were never created.
         db.rollback()
-        for new in stored:
-            storage.delete(new.storage_key)
+        raise
+
+    saved_keys = []
+    try:
+        for new, (_, _, data) in zip(new_documents, checked, strict=True):
+            storage.save(new.storage_key, data, new.content_type)
+            saved_keys.append(new.storage_key)
+    except Exception:
+        # Undo the whole upload: no documents without files, and no files without documents.
+        for key in saved_keys:
+            storage.delete(key)
+        db.projects.adjust_storage_used(project.id, -upload_size)
+        for document in documents:
+            db.documents.delete(document.id)
+        db.commit()
         raise
     return documents
 
@@ -147,20 +160,29 @@ def replace_document(
     # sizes were recorded) counts as growing by its full new size until the Lambda corrects the total.
     growth = len(data) - (document.size_bytes or 0)
     limit = PROJECT_STORAGE_LIMIT if growth > 0 else None
-    if not db.projects.adjust_storage_used(document.project_id, growth, limit=limit):
-        db.rollback()
-        raise ProjectStorageLimitError(document.project_id)
-
-    # Store the new file under a fresh key and only drop the old one once the database
-    # points at the new file, so a failure never leaves the document without a file.
+    # The new file gets a fresh key. The document points at it before the file is stored (as in
+    # upload_documents, so the storage-usage Lambda can always match the file to its document); the old
+    # file is only removed once the new one is safely stored.
     old_key, new_key = document.storage_key, _new_storage_key(document.project_id)
     try:
-        storage.save(new_key, data, content_type)
+        if not db.projects.adjust_storage_used(document.project_id, growth, limit=limit):
+            raise ProjectStorageLimitError(document.project_id)
         updated = db.documents.update(document.id, new_key, name, content_type, len(data))
         db.commit()
     except Exception:
         db.rollback()
+        raise
+
+    try:
+        storage.save(new_key, data, content_type)
+    except Exception:
+        # Point the document back at its old file, and undo the size change.
         storage.delete(new_key)
+        db.documents.update(
+            document.id, old_key, document.original_filename, document.content_type, document.size_bytes
+        )
+        db.projects.adjust_storage_used(document.project_id, -growth)
+        db.commit()
         raise
     storage.delete(old_key)
     return updated
