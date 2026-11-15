@@ -65,9 +65,13 @@ docker-compose.yaml (local), docker-compose.prod.yaml (EC2)
 - **Storage and mail are swappable dependencies** (`get_storage`, `get_mailer`) behind a `Protocol`. Routes
   never touch boto3. Document files must live in S3 when deployed; local disk is only for development
   and tests.
-- **Storage limit:** `projects.storage_used_bytes` is a denormalized total. The API adjusts it on upload,
-  replace and delete with a single conditional `UPDATE`, and the Lambda overwrites it with what S3 really
-  holds (newest `measured_at` wins).
+- **Storage limit:** the S3-triggered Lambda enforces it on what S3 holds: it rejects new uploads that take
+  a project over `PROJECT_STORAGE_LIMIT` (reports them to the API, which removes their documents, then
+  deletes them) and reports the real total. The API also checks uploads up front (413). Its total,
+  `projects.storage_used_bytes`, is denormalized: adjusted on upload, replace and delete with a single
+  conditional `UPDATE`, and overwritten by the Lambda's reports (newest `measured_at` wins). Documents are
+  committed before their files reach S3, so the Lambda never sees a file the API doesn't know; keep
+  that order.
 - **Settings** are module-level names in `app/config.py`, imported by name where they're used. To change
   one in a test, monkeypatch the module that uses it (see the `max_document_size` fixture).
 - **Frontend** (`frontend/`) is a separate static app that calls the API cross-origin, so its origin must
