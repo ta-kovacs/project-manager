@@ -34,3 +34,19 @@ def report_storage_usage(client, internal_auth):
         )
 
     return _report_storage_usage
+
+
+@pytest.fixture
+def report_rejected_files(client, internal_auth):
+    """POST /internal/projects/{id}/rejected-files with the internal token; pass `auth` to send other
+    credentials (None for none)."""
+    default_auth = internal_auth
+
+    def _report_rejected_files(project_id, storage_keys, *, auth=default_auth):
+        return client.post(
+            f"/internal/projects/{project_id}/rejected-files",
+            json={"storage_keys": storage_keys},
+            auth=auth,
+        )
+
+    return _report_rejected_files
