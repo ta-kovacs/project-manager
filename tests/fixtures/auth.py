@@ -13,7 +13,7 @@ from tests.helpers import BearerAuth, payload
 @pytest.fixture
 def credentials():
     """Valid credentials of the default test user."""
-    return {"username": "alice", "password": "s3cret-pass"}
+    return {"username": "alice", "password": "S3cret-pass"}
 
 
 @pytest.fixture
@@ -70,9 +70,9 @@ def auth(registered_user, credentials, bearer_auth):
 @pytest.fixture
 def other_auth(register, bearer_auth):
     """Access token of a second registered user."""
-    response = register(username="bob", password="bobs-password")
+    response = register(username="bob", password="Tr4in-station")
     assert response.status_code == 201, response.text
-    return bearer_auth("bob", "bobs-password")
+    return bearer_auth("bob", "Tr4in-station")
 
 
 def _signed_token(**claims):

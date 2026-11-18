@@ -148,3 +148,34 @@ def test_upload_documents_storage_failure_removes_written_files(
     assert len(saved) == 1  # the first file was written before the failure...
     monkeypatch.undo()
     assert_nothing_stored()  # ...and removed again
+
+
+def test_upload_documents_are_saved_before_their_files(upload_documents, project, storage, db, monkeypatch):
+    # The storage-usage Lambda runs as soon as a file reaches S3; its document must already exist.
+    real_save = storage.save
+    known_when_saved = []
+
+    def save_and_check(key, data, content_type):
+        known_when_saved.append(key in {d.storage_key for d in db.documents.list_for_project(project["id"])})
+        real_save(key, data, content_type)
+
+    monkeypatch.setattr(storage, "save", save_and_check)
+
+    upload_documents(project["id"])
+
+    assert known_when_saved == [True, True]
+
+
+def test_upload_documents_storage_failure_releases_everything(
+    upload_documents, project, storage, storage_used, monkeypatch, count_rows
+):
+    def broken_save(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(storage, "save", broken_save)
+
+    with pytest.raises(OSError):
+        upload_documents(project["id"])
+
+    assert count_rows("documents") == 0
+    assert storage_used(project["id"]) == 0

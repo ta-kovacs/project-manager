@@ -107,11 +107,25 @@ function authView() {
     field("Username", h("input", { name: "username", required: true, minlength: 3, autocomplete: "username" })),
     field(
       "Password",
-      h("input", { name: "password", type: "password", required: true, minlength: 8, autocomplete: "new-password" }),
+      h("input", {
+        name: "password",
+        type: "password",
+        required: true,
+        minlength: 10,
+        maxlength: 128,
+        autocomplete: "new-password",
+        "aria-describedby": "password-rules",
+      }),
+    ),
+    // The API is the source of truth for these rules (app/schemas/user_schema.py); keep the text in step.
+    h(
+      "p",
+      { id: "password-rules", class: "small" },
+      "At least 10 characters, with a lowercase letter, an uppercase letter and a digit, and not containing your username.",
     ),
     field(
       "Repeat password",
-      h("input", { name: "repeat", type: "password", required: true, minlength: 8, autocomplete: "new-password" }),
+      h("input", { name: "repeat", type: "password", required: true, minlength: 10, autocomplete: "new-password" }),
     ),
     h("button", { type: "submit" }, "Create account"),
   );

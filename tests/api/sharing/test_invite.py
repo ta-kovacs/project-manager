@@ -12,9 +12,9 @@ def invitee(other_auth):
 @pytest.fixture
 def third_auth(register, bearer_auth):
     """Access token of a third registered user."""
-    response = register(username="carol", password="carols-password")
+    response = register(username="carol", password="Sunny-d4ys-ahead")
     assert response.status_code == 201, response.text
-    return bearer_auth("carol", "carols-password")
+    return bearer_auth("carol", "Sunny-d4ys-ahead")
 
 
 def test_invite_user_returns_membership(invite_user, project, invitee):

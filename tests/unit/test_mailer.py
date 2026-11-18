@@ -52,6 +52,17 @@ def test_ses_mailer_failure_raises_mail_delivery_error(ses_client):
         SesMailer(SENDER, client=ses_client).send("bob@example.com", "Subject", "Body")
 
 
+def test_ses_mailer_without_region_raises_mail_delivery_error(monkeypatch, tmp_path):
+    for name in ("AWS_REGION", "AWS_DEFAULT_REGION"):
+        monkeypatch.delenv(name, raising=False)
+    # No ~/.aws/config either, so boto3 finds no region at all.
+    monkeypatch.setenv("AWS_CONFIG_FILE", str(tmp_path / "missing-config"))
+    mailer = SesMailer(SENDER)  # creating the mailer doesn't need AWS yet
+
+    with pytest.raises(MailDeliveryError, match="region"):
+        mailer.send("bob@example.com", "Subject", "Body")
+
+
 def test_console_mailer_logs_email(caplog):
     with caplog.at_level(logging.WARNING, logger="app.mailer"):
         ConsoleMailer().send("bob@example.com", "Join Apollo", "Open this link")

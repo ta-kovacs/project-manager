@@ -252,3 +252,11 @@ def test_delete_removes_only_that_document(any_db, project):
     any_db.commit()
 
     assert any_db.documents.list_for_project(project.id) == [second]
+
+
+def test_document_can_be_found_by_storage_key(any_db, project):
+    _, second = any_db.documents.create_many(project.id, [new_document("a.pdf"), new_document("b.pdf")])
+    any_db.commit()
+
+    assert any_db.documents.get_by_storage_key(second.storage_key) == second
+    assert any_db.documents.get_by_storage_key("projects/documents/missing.pdf") is None

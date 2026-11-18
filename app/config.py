@@ -20,7 +20,8 @@ STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "local")
 STORAGE_DIR = os.getenv("STORAGE_DIR", "storage")
 
 # s3 backend: the bucket holding document files. Credentials and region come from the
-# standard AWS sources (EC2 instance role, AWS_REGION, ~/.aws/...), as for any boto3 client.
+# standard AWS sources (EC2 instance role, AWS_DEFAULT_REGION, ~/.aws/...), as for any boto3
+# client. boto3 does not read AWS_REGION.
 S3_BUCKET = os.getenv("S3_BUCKET")
 
 # Largest accepted document upload, in bytes (default 10 MB).

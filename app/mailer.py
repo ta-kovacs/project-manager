@@ -38,11 +38,18 @@ class SesMailer:
 
     def __init__(self, sender: str, client=None):
         self.sender = sender
-        self.client = client or boto3.client("sesv2")
+        self._client = client
+
+    def _get_client(self):
+        # Created on first use, inside send's error handling: creating it fails when no region is
+        # configured, and that should be a MailDeliveryError (502), not an unhandled error (500).
+        if self._client is None:
+            self._client = boto3.client("sesv2")
+        return self._client
 
     def send(self, to: str, subject: str, body: str) -> None:
         try:
-            self.client.send_email(
+            self._get_client().send_email(
                 FromEmailAddress=self.sender,
                 Destination={"ToAddresses": [to]},
                 Content={

@@ -194,7 +194,8 @@ jobs:
 
       # After the app, so the database already has the columns the Lambda's reports are stored in.
       # Skipped until the STORAGE_USAGE_LAMBDA variable names the function; the deploy role or user needs
-      # lambda:UpdateFunctionCode and lambda:GetFunctionConfiguration on it.
+      # lambda:UpdateFunctionCode and lambda:GetFunction on it (the `wait function-updated-v2` below
+      # calls GetFunction).
       - name: Deploy storage-usage Lambda
         if: vars.STORAGE_USAGE_LAMBDA != ''
         run: |

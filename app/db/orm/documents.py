@@ -19,6 +19,13 @@ class OrmDocumentRepository:
         model = self._model(document_id)
         return None if model is None else to_record.document(model)
 
+    def get_by_storage_key(self, storage_key: str) -> records.Document | None:
+        statement = (
+            select(Document).where(Document.storage_key == storage_key).execution_options(populate_existing=True)
+        )
+        model = self.session.scalar(statement)
+        return None if model is None else to_record.document(model)
+
     def list_for_project(self, project_id: int) -> list[records.Document]:
         statement = (
             select(Document)

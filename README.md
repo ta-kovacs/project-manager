@@ -51,6 +51,12 @@ modules with no build step, so any static file server can serve it.
 
 ## Authentication
 
+`POST /auth` registers a user (`username`, `password`, `repeat_password`). Usernames are 3–250 characters
+and unique. Passwords must be 10–128 characters with a lowercase letter, an uppercase letter and a digit,
+and must not contain the username (ignoring case); a weak password gets `422` listing every rule it breaks.
+Passwords are stored only as Argon2 hashes. The rules apply when registering, so older accounts can still
+log in.
+
 `POST /login` exchanges a username and password for a JWT access token, valid for one hour:
 
 ```json
@@ -119,11 +125,60 @@ the standard AWS credential chain; on EC2 that is the instance role, so no keys 
 
 ### Project storage limit (S3 + Lambda)
 
-Each project may hold at most `PROJECT_STORAGE_LIMIT` bytes of documents. The API keeps a running total per
-project and checks uploads against it; in AWS, the storage-usage Lambda (`lambdas/storage_usage/`) runs on
-every S3 change, measures what the bucket really holds for that project, and reports it back through
-`PUT /internal/projects/{id}/storage-usage` (authenticated with `INTERNAL_API_TOKEN`). The Lambda's
-configuration is described at the top of `lambdas/storage_usage/handler.py`.
+Each project may hold at most `PROJECT_STORAGE_LIMIT` bytes of documents (default 100 MB). The storage-usage
+Lambda (`lambdas/storage_usage/handler.py`) calculates and enforces it. S3 triggers it for every file
+created or removed under `projects/`, and for each project involved it:
+
+1. lists the project's files and adds up their sizes;
+2. if the event uploaded files and the total is over the limit, **rejects the new files**, newest first and
+   only as many as needed: it reports them to `POST /internal/projects/{id}/rejected-files` (the API removes
+   their documents), then deletes them from S3. Files that were stored before are never removed;
+3. reports the resulting total to `PUT /internal/projects/{id}/storage-usage`.
+
+The API keeps that total in `projects.storage_used_bytes` (a deliberate denormalization), adjusts it on every
+upload, replace and delete, and refuses uploads that would go over the limit with `413` before they reach S3.
+So users normally get an immediate error, and the Lambda enforces the limit on whatever does reach S3 (for
+example when the API's count drifted, or files were added to the bucket directly). A document is committed
+before its file is stored, so the API always knows the file the Lambda reports on. Both internal endpoints
+require `INTERNAL_API_TOKEN`.
+
+#### Lambda: AWS setup
+
+- **Function:** Python 3.13 or newer, handler `handler.lambda_handler`, timeout 30 s. CI updates its code on
+  every deploy once the `STORAGE_USAGE_LAMBDA` repository variable names it.
+- **Environment variables:** `API_BASE_URL` (the public address of the app), `INTERNAL_API_TOKEN_PARAMETER`
+  (`/project-manager/internal-api-token`), `DOCUMENTS_BUCKET` (only for `{"recompute_all": true}`), and
+  optionally `PROJECT_STORAGE_LIMIT` (keep it equal to the API's).
+- **Trigger:** S3 event notification on the documents bucket, prefix `projects/`, all object create and all
+  object removal events.
+- **Execution role:** `AWSLambdaBasicExecutionRole` for logs, plus:
+
+  ```json
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": "s3:ListBucket",
+        "Resource": "arn:aws:s3:::<documents-bucket>",
+        "Condition": { "StringLike": { "s3:prefix": ["projects/*"] } }
+      },
+      {
+        "Effect": "Allow",
+        "Action": "s3:DeleteObject",
+        "Resource": "arn:aws:s3:::<documents-bucket>/projects/*"
+      },
+      {
+        "Effect": "Allow",
+        "Action": "ssm:GetParameter",
+        "Resource": "arn:aws:ssm:<region>:<account-id>:parameter/project-manager/internal-api-token"
+      }
+    ]
+  }
+  ```
+
+- **CI deploy user or role:** `lambda:UpdateFunctionCode` and `lambda:GetFunction` on the function.
+- **Measure existing projects** once after setting it up: run a test event `{"recompute_all": true}`.
 
 ## Packaging
 
