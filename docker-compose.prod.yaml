@@ -30,6 +30,9 @@ services:
       STORAGE_BACKEND: s3
       S3_BUCKET: ${S3_BUCKET:?S3_BUCKET is not set}
       AWS_REGION: ${AWS_REGION:?AWS_REGION is not set}
+      # boto3 reads the region only from AWS_DEFAULT_REGION, not AWS_REGION. S3 works without one (it
+      # falls back to its global endpoint), but SES does not: without this, share emails fail.
+      AWS_DEFAULT_REGION: ${AWS_REGION}
       # Share emails go out through SES from MAIL_SENDER; links are signed with SHARE_SECRET_KEY.
       MAIL_BACKEND: ses
       MAIL_SENDER: ${MAIL_SENDER:?MAIL_SENDER is not set}
